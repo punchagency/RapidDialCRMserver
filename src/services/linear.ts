@@ -1,0 +1,148 @@
+import { LinearClient } from "@linear/sdk";
+
+let connectionSettings: any;
+
+async function getAccessToken() {
+  if (
+    connectionSettings &&
+    connectionSettings.settings.expires_at &&
+    new Date(connectionSettings.settings.expires_at).getTime() > Date.now()
+  ) {
+    return connectionSettings.settings.access_token;
+  }
+
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? "repl " + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+    ? "depl " + process.env.WEB_REPL_RENEWAL
+    : null;
+
+  if (!xReplitToken || !hostname) {
+    console.warn("Linear not configured: Replit connectors not available");
+    return null;
+  }
+
+  try {
+    connectionSettings = await fetch(
+      "https://" +
+        hostname +
+        "/api/v2/connection?include_secrets=true&connector_names=linear",
+      {
+        headers: {
+          Accept: "application/json",
+          X_REPLIT_TOKEN: xReplitToken,
+        },
+      }
+    )
+      .then((res) => res.json())
+      .then((data) => data.items?.[0]);
+
+    const accessToken =
+      connectionSettings?.settings?.access_token ||
+      connectionSettings.settings?.oauth?.credentials?.access_token;
+
+    if (!connectionSettings || !accessToken) {
+      console.warn("Linear not connected");
+      return null;
+    }
+    return accessToken;
+  } catch (error) {
+    console.warn("Failed to get Linear access token:", error);
+    return null;
+  }
+}
+
+export async function getLinearClient() {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    return null;
+  }
+  return new LinearClient({ accessToken });
+}
+
+export interface CreateIssueParams {
+  title: string;
+  description?: string;
+  priority?: number;
+  labelIds?: string[];
+}
+
+export async function createLinearIssue(params: CreateIssueParams) {
+  const client = await getLinearClient();
+  if (!client) {
+    throw new Error("Linear not configured");
+  }
+
+  const me = await client.viewer;
+  const teams = await client.teams();
+  const team = teams.nodes[0];
+
+  if (!team) {
+    throw new Error("No Linear team found");
+  }
+
+  const issue = await client.createIssue({
+    teamId: team.id,
+    title: params.title,
+    description: params.description,
+    priority: params.priority || 2,
+    labelIds: params.labelIds,
+  });
+
+  return issue;
+}
+
+export async function getLinearTeams() {
+  const client = await getLinearClient();
+  if (!client) {
+    return [];
+  }
+  const teams = await client.teams();
+  return teams.nodes;
+}
+
+export async function getLinearIssues(teamId?: string) {
+  const client = await getLinearClient();
+  if (!client) {
+    return [];
+  }
+
+  if (teamId) {
+    const team = await client.team(teamId);
+    const issues = await team.issues();
+    return issues.nodes;
+  }
+
+  const issues = await client.issues();
+  return issues.nodes;
+}
+
+export async function getLinearLabels(teamId: string) {
+  const client = await getLinearClient();
+  if (!client) {
+    return [];
+  }
+  const team = await client.team(teamId);
+  const labels = await team.labels();
+  return labels.nodes;
+}
+
+export async function uploadAttachmentToLinear(
+  issueId: string,
+  url: string,
+  title: string
+) {
+  const client = await getLinearClient();
+  if (!client) {
+    throw new Error("Linear not configured");
+  }
+
+  const attachment = await client.createAttachment({
+    issueId,
+    url,
+    title,
+  });
+
+  return attachment;
+}
