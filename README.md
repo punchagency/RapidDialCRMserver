@@ -1,235 +1,165 @@
-# RapidDialCRM Server
+# CRM Backend
 
-Backend API server for RapidDialCRM - a sales and appointment scheduling CRM system.
+Node.js backend server for the CRM application, built with TypeScript and Object-Oriented Programming principles.
 
-## Overview
+## Structure
 
-This is the Express.js backend that provides:
+```
+crm-backend/
+├── server.ts              # Application entry point
+├── tsconfig.json          # TypeScript configuration
+├── config/
+│   ├── security.ts        # Security configuration and middleware
+│   └── database.ts        # TypeORM database connection and configuration
+├── core/
+│   └── Server.ts          # Server class for Express configuration
+├── routes/
+│   └── index.ts           # API routes manager
+├── src/
+│   ├── entities/          # TypeORM entity files
+│   ├── migrations/        # Database migrations
+│   └── subscribers/       # TypeORM subscribers
+└── package.json
+```
 
-- RESTful API endpoints for prospect and appointment management
-- Database operations using Drizzle ORM with PostgreSQL
-- Twilio integration for calling features
-- LiveKit integration for real-time communications
-- User authentication and authorization
-- Geocoding services via HERE Maps API
+## Features
 
-## Prerequisites
-
-- Node.js 18+ and npm
-- PostgreSQL database (or Neon serverless PostgreSQL)
-- Twilio account (for calling features)
-- LiveKit account (for real-time features)
-- HERE Maps API key (for geocoding)
+- **TypeScript**: Full TypeScript support with strict type checking
+- **OOP Architecture**: Built with classes and proper separation of concerns
+- **TypeORM Integration**: Database connection management with TypeORM
+- **Database Support**: PostgreSQL, MySQL, and SQLite support
+- **Security**: Helmet, CORS, and rate limiting configured
+- **Routes Management**: Organized route structure with versioning
+- **Error Handling**: Centralized error handling middleware
+- **Health Checks**: Built-in health check endpoint
+- **Environment Configuration**: Support for environment variables
+- **Graceful Shutdown**: Proper cleanup on application termination
 
 ## Installation
-
-1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and configure your environment variables:
+## Configuration
 
-```bash
-cp .env.example .env
+1. Copy `.env.example` to `.env`
+2. Update environment variables as needed
+
+### Database Configuration
+
+The application supports multiple database types via TypeORM:
+
+- **PostgreSQL** (default)
+- **MySQL/MariaDB**
+- **SQLite**
+
+Configure your database in `.env`:
+
+```env
+DB_TYPE=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=your_password
+DB_NAME=crm_db
+DB_SYNCHRONIZE=false  # Set to true only in development
 ```
 
-3. Update the `.env` file with your actual values (see Environment Variables section below)
+## Running the Server
 
-4. Push database schema:
-
-```bash
-npm run db:push
-```
-
-5. (Optional) Seed initial data:
-
-```bash
-npm run dev
-# Then in another terminal:
-tsx seedData.ts
-# Or for all data:
-tsx seedAllData.ts
-```
-
-## Environment Variables
-
-### Required Variables
-
-- `DATABASE_URL` - PostgreSQL connection string (e.g., from Neon or local PostgreSQL)
-- `PORT` - Server port (default: 5000)
-- `NODE_ENV` - Environment mode (`development` or `production`)
-
-### Twilio Configuration (Required for calling features)
-
-- `TWILIO_ACCOUNT_SID` - Your Twilio Account SID
-- `TWILIO_AUTH_TOKEN` - Your Twilio Auth Token
-- `TWILIO_API_KEY` - Twilio API Key for client SDK
-- `TWILIO_API_SECRET` - Twilio API Secret
-- `TWILIO_PHONE_NUMBER` - Your Twilio phone number (E.164 format)
-- `TWILIO_TWIML_APP_SID` - TwiML App SID for voice
-
-### LiveKit Configuration (Required for real-time features)
-
-- `LIVEKIT_API_KEY` - LiveKit API Key
-- `LIVEKIT_API_SECRET` - LiveKit API Secret
-- `LIVEKIT_URL` - LiveKit server URL (e.g., `wss://your-project.livekit.cloud`)
-
-### Optional Variables
-
-- `HERE_API_KEY` - HERE Maps API key for geocoding
-- `REPLIT_DOMAINS` - For Replit deployments
-- `REPLIT_CONNECTORS_HOSTNAME` - For Replit connectors
-- `REPL_IDENTITY` - For Replit identity
-- `WEB_REPL_RENEWAL` - For Replit web renewal
-
-## Development
-
-Start the development server with auto-reload:
-
+### Development
 ```bash
 npm run dev
 ```
+This uses `nodemon` with `ts-node` to run TypeScript files directly with hot reload and auto-restart on file changes.
 
-The server will start on `http://localhost:5000` (or the PORT you specified)
+### Production
+```bash
+npm run build  # Compile TypeScript to JavaScript
+npm start      # Run the compiled JavaScript
+```
 
-## Scripts
-
-- `npm run dev` - Start development server with tsx watch mode
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run check` - Type-check TypeScript
-- `npm run db:push` - Push database schema changes
+### Type Checking
+```bash
+npm run type-check
+```
 
 ## API Endpoints
 
-### Prospects
+- `GET /health` - Health check endpoint
+- `GET /api` - API information endpoint
+- `GET /api/v1/contacts` - Contacts endpoint (placeholder)
+- `GET /api/v1/users` - Users endpoint (placeholder)
+- `GET /api/v1/dashboard` - Dashboard endpoint (placeholder)
 
-- `GET /api/prospects` - List all prospects
-- `GET /api/prospects/:id` - Get prospect by ID
-- `POST /api/prospects` - Create new prospect
-- `PATCH /api/prospects/:id` - Update prospect
-- `GET /api/prospects/territory/:territory` - List prospects by territory
+## Architecture
 
-### Appointments
+### Database Connection (`config/database.ts`)
 
-- `GET /api/appointments` - List appointments
-- `GET /api/appointments/today` - Today's appointments
-- `POST /api/appointments` - Create appointment
-- `PATCH /api/appointments/:id` - Update appointment
+The `DatabaseManager` class handles all database operations:
+- Singleton pattern for database connection
+- Supports PostgreSQL, MySQL, and SQLite
+- Automatic connection initialization
+- Graceful connection closing
+- Fully typed with TypeScript
 
-### Field Reps
+### Routes (`routes/index.ts`)
 
-- `GET /api/field-reps` - List field reps
-- `POST /api/field-reps` - Create field rep
-- `PATCH /api/field-reps/:id` - Update field rep
+The `RoutesManager` class manages all API routes:
+- Versioned API structure (`/api/v1`)
+- Organized route definitions
+- Database-aware route handlers
+- Easy to extend with new endpoints
+- Type-safe request/response handling
 
-### Users & Auth
+### Entry Point (`server.ts`)
 
-- `POST /api/register` - Register new user
-- `POST /api/login` - User login
-- `POST /api/logout` - User logout
-- `GET /api/user` - Get current user
-- `GET /api/users` - List all users (admin)
+The `Application` class orchestrates the entire application:
+- Initializes security middleware
+- Connects to database
+- Sets up routes
+- Starts the server
+- Handles graceful shutdown
+- Fully typed with TypeScript
 
-### Twilio
+## Security Features
 
-- `POST /api/twilio/token` - Generate Twilio client token
-- `POST /api/twilio/voice` - TwiML voice webhook
-- `POST /api/twilio/status` - Call status callback
+- **Helmet**: Security headers
+- **CORS**: Configurable cross-origin resource sharing
+- **Rate Limiting**: Protection against brute force attacks
+- **Input Validation**: Ready for express-validator integration
 
-### LiveKit
+## TypeORM Entities
 
-- `POST /api/livekit/token` - Generate LiveKit token
+Create your entities in `src/entities/` directory. Example:
 
-## Database Schema
+```typescript
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-The database schema is located in `src/db/schema.ts` and includes:
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn()
+  id!: number;
 
-- **prospects** - Business prospects and leads
-- **field_reps** - Field sales representatives
-- **appointments** - Scheduled appointments
-- **call_history** - Call attempt records
-- **stakeholders** - Business stakeholders/contacts
-- **users** - System users with RBAC
-- **user_territories** - User-territory assignments
-- **user_professions** - User-profession assignments
-- **specialty_colors** - UI color coding for specialties
-- **call_outcomes** - Predefined call outcome options
-- **issues** - Project tracking/issues (Linear integration)
+  @Column()
+  name!: string;
 
-## Project Structure
-
-```
-server-new/
-├── src/
-│   ├── db/
-│   │   └── schema.ts         # Database schema definitions
-│   ├── services/
-│   │   ├── twilio.ts         # Twilio service functions
-│   │   ├── livekit.ts        # LiveKit service functions
-│   │   ├── geocoding.ts      # HERE Maps geocoding
-│   │   ├── linear.ts         # Linear API integration
-│   │   └── optimization.ts   # Route optimization
-│   ├── index.ts              # Server entry point
-│   ├── routes.ts             # API route definitions
-│   └── storage.ts            # Database operations layer
-├── migrations/               # Drizzle database migrations
-├── seedData.ts              # Database seeding script
-├── seedAllData.ts           # Complete data seeding
-├── package.json
-├── tsconfig.json
-├── drizzle.config.ts
-└── .env.example
+  @Column()
+  email!: string;
+}
 ```
 
-## Deployment
+Then import and use them in your routes via the database manager.
 
-### Building for Production
+## TypeScript Configuration
 
-```bash
-npm run build
-```
+The project uses TypeScript with strict mode enabled. Key configuration:
+- **Target**: ES2022
+- **Module**: ESNext
+- **Strict**: Enabled
+- **Decorators**: Enabled (for TypeORM)
+- **Source Maps**: Enabled for debugging
 
-This creates a bundled `dist/index.js` file.
+All files are compiled to the `dist/` directory for production.
 
-### Running in Production
-
-```bash
-NODE_ENV=production npm start
-```
-
-Make sure all environment variables are properly set in your production environment.
-
-## Security Notes
-
-- Never commit `.env` file to version control
-- Use strong passwords and rotate API keys regularly
-- Implement rate limiting in production
-- Use HTTPS in production
-- Validate all user inputs
-- Keep dependencies updated
-
-## Troubleshooting
-
-### Database connection issues
-
-- Verify `DATABASE_URL` is correct
-- Check network connectivity to database
-- Ensure database exists and is accessible
-
-### Twilio not working
-
-- Verify all Twilio environment variables are set
-- Check Twilio console for account status
-- Ensure phone number is verified
-
-### Port already in use
-
-- Change `PORT` in `.env` file
-- Kill process using the port: `lsof -ti:5000 | xargs kill` (macOS/Linux)
-
-## License
-
-MIT

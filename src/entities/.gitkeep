@@ -1,0 +1,4 @@
+# Entities directory
+# Place your TypeORM entity files here
+# Example: User.ts, Contact.ts, etc.
+
