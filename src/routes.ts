@@ -29,6 +29,9 @@ import {
   getTwiMLForBrowserCall,
   makeOutboundCall,
   phoneNumber as twilioPhoneNumber,
+  isTwilioConfigured,
+  isTwilioVoiceConfigured,
+  getCallDetails,
 } from "./services/twilio";
 import {
   searchProfessionalsByLocation,
@@ -39,6 +42,8 @@ import {
   isLiveKitConfigured,
   getLiveKitUrl,
   generateCallRoomName,
+  createSipParticipant,
+  isSipConfigured,
 } from "./services/livekit";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -714,11 +719,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Identity is required" });
       }
 
+      if (!isTwilioVoiceConfigured()) {
+        return res.status(503).json({
+          error: "Twilio Voice not configured",
+          details:
+            "TWILIO_TWIML_APP_SID is missing. Please create a TwiML app in Twilio Console.",
+        });
+      }
+
       const token = generateAccessToken(identity);
-      res.json({ token, identity });
+      res.json({
+        token,
+        identity,
+        phoneNumber: twilioPhoneNumber,
+      });
     } catch (error) {
       console.error("Twilio token error:", error);
-      res.status(500).json({ error: "Failed to generate Twilio token" });
+      res.status(500).json({
+        error: "Failed to generate Twilio token",
+        details: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   });
 
@@ -785,13 +805,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET /api/twilio/config - Get Twilio configuration (non-sensitive)
   app.get("/api/twilio/config", async (req, res) => {
     res.json({
-      configured: !!(
-        process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-      ),
+      configured: isTwilioConfigured(),
+      voiceConfigured: isTwilioVoiceConfigured(),
       phoneNumber: twilioPhoneNumber
         ? twilioPhoneNumber.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")
         : null,
+      twimlAppConfigured: !!process.env.TWILIO_TWIML_APP_SID,
     });
+  });
+
+  // POST /api/twilio/call/log - Log call details from frontend
+  app.post("/api/twilio/call/log", async (req, res) => {
+    try {
+      const { prospectId, callerId, callSid, outcome, duration, phoneNumber } =
+        req.body;
+
+      if (!prospectId || !callerId) {
+        return res.status(400).json({
+          error: "prospectId and callerId are required",
+        });
+      }
+
+      const notes = [
+        callSid && `Call SID: ${callSid}`,
+        duration && `Duration: ${duration}s`,
+        phoneNumber && `Phone: ${phoneNumber}`,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      await storage.recordCallOutcome(
+        prospectId,
+        callerId,
+        outcome || "Call completed",
+        notes
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Call log error:", error);
+      res.status(500).json({ error: "Failed to log call" });
+    }
+  });
+
+  // GET /api/twilio/call/:callSid - Get call details
+  app.get("/api/twilio/call/:callSid", async (req, res) => {
+    try {
+      const { callSid } = req.params;
+      const callDetails = await getCallDetails(callSid);
+      res.json(callDetails);
+    } catch (error) {
+      console.error("Get call details error:", error);
+      res.status(500).json({ error: "Failed to get call details" });
+    }
   });
 
   // ========== LiveKit Routes ==========
@@ -842,13 +908,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name: callerName,
       });
 
+      // Create SIP participant to actually dial the phone number
+      // This is what makes the phone ring!
+      let sipParticipant = null;
+      let sipError = null;
+
+      if (isSipConfigured()) {
+        try {
+          sipParticipant = await createSipParticipant(roomName, phoneNumber, {
+            participantName: `Phone: ${phoneNumber}`,
+            playRingtone: true,
+          });
+          console.log(`📞 Dialing ${phoneNumber} in room ${roomName}`);
+        } catch (error) {
+          sipError = error instanceof Error ? error.message : "SIP call failed";
+          console.error("SIP participant creation failed:", error);
+          // Don't fail the whole request - let the client join the room even if SIP fails
+          // This allows debugging
+        }
+      } else {
+        sipError = "SIP not configured - LIVEKIT_SIP_TRUNK_ID missing";
+        console.warn(sipError);
+      }
+
       // Log call attempt if prospectId provided
       if (prospectId) {
         await storage.recordCallOutcome(
           prospectId,
           callerId,
-          "Call initiated",
-          `LiveKit Room: ${roomName}`
+          sipParticipant
+            ? "Call initiated"
+            : "Call failed - SIP not configured",
+          `LiveKit Room: ${roomName}${sipError ? ` - Error: ${sipError}` : ""}`
         );
       }
 
@@ -858,6 +949,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         token,
         url: getLiveKitUrl(),
         phoneNumber,
+        sipConfigured: isSipConfigured(),
+        sipParticipantCreated: !!sipParticipant,
+        sipError: sipError || undefined,
       });
     } catch (error) {
       console.error("LiveKit call error:", error);
