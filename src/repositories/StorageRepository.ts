@@ -25,6 +25,7 @@ export interface IStorageRepository {
  listProspectsByTerritory(territory: string): Promise<Prospect[]>;
  createProspect(prospect: Partial<Prospect>): Promise<Prospect>;
  updateProspect(id: string, prospect: Partial<Prospect>): Promise<Prospect | null>;
+ deleteProspect(id: string): Promise<void>;
  listProspectsWithoutCoordinates(): Promise<Prospect[]>;
 
  // Field Reps
@@ -145,6 +146,10 @@ export class StorageRepository implements IStorageRepository {
  async updateProspect(id: string, prospect: Partial<Prospect>): Promise<Prospect | null> {
   await this.prospectRepo.update(id, { ...prospect, updatedAt: new Date() });
   return await this.getProspect(id);
+ }
+
+ async deleteProspect(id: string): Promise<void> {
+  await this.prospectRepo.delete(id);
  }
 
  async listProspectsWithoutCoordinates(): Promise<Prospect[]> {

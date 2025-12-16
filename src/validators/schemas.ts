@@ -67,6 +67,7 @@ export const insertStakeholderSchema = z.object({
   email: z.string().max(255).email().optional(),
   phoneNumber: z.string().max(20).optional(),
   isPrimary: z.boolean().default(false),
+  contactType: z.enum(['client-admin', 'provider']).optional(),
 });
 
 // User schemas
