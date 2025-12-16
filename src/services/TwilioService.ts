@@ -1,5 +1,5 @@
-import twilio from 'twilio';
-import dotenv from 'dotenv';
+import twilio from "twilio";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -27,35 +27,86 @@ export class TwilioService {
     this.twimlAppSid = process.env.TWILIO_TWIML_APP_SID;
 
     const missingCredentials: string[] = [];
-    if (!this.accountSid) missingCredentials.push('TWILIO_ACCOUNT_SID');
-    if (!this.authToken) missingCredentials.push('TWILIO_AUTH_TOKEN');
-    if (!this.apiKey) missingCredentials.push('TWILIO_API_KEY');
-    if (!this.apiSecret) missingCredentials.push('TWILIO_API_SECRET');
-    if (!this.phoneNumber) missingCredentials.push('TWILIO_PHONE_NUMBER');
+    if (!this.accountSid) missingCredentials.push("TWILIO_ACCOUNT_SID");
+    if (!this.authToken) missingCredentials.push("TWILIO_AUTH_TOKEN");
+    if (!this.apiKey) missingCredentials.push("TWILIO_API_KEY");
+    if (!this.apiSecret) missingCredentials.push("TWILIO_API_SECRET");
+    if (!this.phoneNumber) missingCredentials.push("TWILIO_PHONE_NUMBER");
 
     if (missingCredentials.length > 0) {
-      console.warn(`Twilio credentials not fully configured. Missing: ${missingCredentials.join(', ')}`);
+      console.warn(
+        `Twilio credentials not fully configured. Missing: ${missingCredentials.join(
+          ", "
+        )}`
+      );
     }
 
-    this.client = this.accountSid && this.authToken ? twilio(this.accountSid, this.authToken) : null;
+    if (!this.twimlAppSid) {
+      console.warn(
+        "TWILIO_TWIML_APP_SID not configured - browser calling will not work"
+      );
+    }
+
+    this.client =
+      this.accountSid && this.authToken
+        ? twilio(this.accountSid, this.authToken)
+        : null;
     this.AccessToken = twilio.jwt.AccessToken;
     this.VoiceGrant = this.AccessToken.VoiceGrant;
   }
 
   /**
-   * Generate Twilio access token for client SDK
+   * Check if Twilio is fully configured
+   */
+  isConfigured(): boolean {
+    return !!(
+      this.accountSid &&
+      this.authToken &&
+      this.apiKey &&
+      this.apiSecret &&
+      this.phoneNumber
+    );
+  }
+
+  /**
+   * Check if Twilio Voice (browser calling) is configured
+   */
+  isVoiceConfigured(): boolean {
+    return this.isConfigured() && !!this.twimlAppSid;
+  }
+
+  /**
+   * Generate Twilio access token for browser calling
    */
   generateAccessToken(identity: string): string {
     if (!this.accountSid || !this.apiKey || !this.apiSecret) {
       throw new Error(
-        'Twilio credentials not configured. Missing: ' +
-          [!this.accountSid && 'TWILIO_ACCOUNT_SID', !this.apiKey && 'TWILIO_API_KEY', !this.apiSecret && 'TWILIO_API_SECRET']
+        "Twilio credentials not configured. Missing: " +
+          [
+            !this.accountSid && "TWILIO_ACCOUNT_SID",
+            !this.apiKey && "TWILIO_API_KEY",
+            !this.apiSecret && "TWILIO_API_SECRET",
+          ]
             .filter(Boolean)
-            .join(', ')
+            .join(", ")
       );
     }
 
-    const accessToken = new this.AccessToken(this.accountSid, this.apiKey, this.apiSecret, { identity });
+    if (!this.twimlAppSid) {
+      throw new Error(
+        "TWILIO_TWIML_APP_SID not configured. Create a TwiML app in Twilio Console."
+      );
+    }
+
+    const accessToken = new this.AccessToken(
+      this.accountSid,
+      this.apiKey,
+      this.apiSecret,
+      {
+        identity,
+        ttl: 3600, // 1 hour
+      }
+    );
 
     const voiceGrant = new this.VoiceGrant({
       outgoingApplicationSid: this.twimlAppSid,
@@ -68,21 +119,22 @@ export class TwilioService {
   }
 
   /**
-   * Make an outbound call
+   * Make an outbound call from server (for server-initiated calls)
+   * Note: For browser calls, use Twilio Client SDK on frontend instead
    */
   async makeOutboundCall(to: string, callerId?: string): Promise<any> {
     if (!this.client) {
-      throw new Error('Twilio client not initialized');
+      throw new Error("Twilio client not initialized");
     }
 
     const from = callerId || this.phoneNumber;
     if (!from) {
-      throw new Error('No phone number configured for outbound calls');
+      throw new Error("No phone number configured for outbound calls");
     }
 
     const baseUrl = process.env.REPLIT_DOMAINS
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-      : process.env.API_BASE_URL || 'http://localhost:3001';
+      ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+      : process.env.API_BASE_URL || "http://localhost:5000";
 
     const call = await this.client.calls.create({
       to,
@@ -94,7 +146,7 @@ export class TwilioService {
   }
 
   /**
-   * Get TwiML for outbound call
+   * Get TwiML for outbound calls
    */
   getTwiMLForOutboundCall(to: string): string {
     const VoiceResponse = twilio.twiml.VoiceResponse;
@@ -111,34 +163,65 @@ export class TwilioService {
   }
 
   /**
-   * Get TwiML for browser call
+   * Get TwiML for browser-initiated calls
+   * This is what gets called when frontend uses Twilio Client SDK
    */
-  getTwiMLForBrowserCall(to: string): string {
+  getTwiMLForBrowserCall(to: string, from?: string): string {
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const response = new VoiceResponse();
 
     if (to) {
       const baseUrl = process.env.REPLIT_DOMAINS
-        ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-        : process.env.API_BASE_URL || 'http://localhost:3001';
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : process.env.API_BASE_URL || "http://localhost:5000";
 
       const dial = response.dial({
-        callerId: this.phoneNumber || undefined,
+        callerId: from || this.phoneNumber || undefined,
         timeout: 30,
         answerOnBridge: true,
       });
       dial.number(
         {
-          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+          statusCallbackEvent: [
+            "initiated",
+            "ringing",
+            "answered",
+            "completed",
+          ],
           statusCallback: `${baseUrl}/api/twilio/status`,
         },
         to
       );
     } else {
-      response.say('No phone number provided');
+      response.say("No phone number provided");
     }
 
     return response.toString();
+  }
+
+  /**
+   * Get call details from Twilio
+   */
+  async getCallDetails(callSid: string): Promise<any> {
+    if (!this.client) {
+      throw new Error("Twilio client not initialized");
+    }
+
+    try {
+      const call = await this.client.calls(callSid).fetch();
+      return {
+        sid: call.sid,
+        status: call.status,
+        duration: call.duration,
+        from: call.from,
+        to: call.to,
+        startTime: call.startTime,
+        endTime: call.endTime,
+      };
+    } catch (error) {
+      console.error("Failed to fetch call details:", error);
+      throw error;
+    }
   }
 
   /**
@@ -153,13 +236,6 @@ export class TwilioService {
    */
   getPhoneNumber(): string | undefined {
     return this.phoneNumber;
-  }
-
-  /**
-   * Check if Twilio is configured
-   */
-  isConfigured(): boolean {
-    return !!(this.accountSid && this.authToken && this.apiKey && this.apiSecret && this.phoneNumber);
   }
 }
 
@@ -176,3 +252,20 @@ export function getTwilioService(): TwilioService {
   return twilioServiceInstance;
 }
 
+// Legacy exports for backward compatibility
+// export const isTwilioConfigured = (): boolean =>
+//   getTwilioService().isConfigured();
+// export const isTwilioVoiceConfigured = (): boolean =>
+//   getTwilioService().isVoiceConfigured();
+// export const generateAccessToken = (identity: string): string =>
+//   getTwilioService().generateAccessToken(identity);
+// export const makeOutboundCall = (to: string, callerId?: string): Promise<any> =>
+//   getTwilioService().makeOutboundCall(to, callerId);
+// export const getTwiMLForOutboundCall = (to: string): string =>
+//   getTwilioService().getTwiMLForOutboundCall(to);
+// export const getTwiMLForBrowserCall = (to: string, from?: string): string =>
+//   getTwilioService().getTwiMLForBrowserCall(to, from);
+// export const getCallDetails = (callSid: string): Promise<any> =>
+//   getTwilioService().getCallDetails(callSid);
+// export const client = getTwilioService().getClient();
+// export const phoneNumber = getTwilioService().getPhoneNumber();
