@@ -266,6 +266,23 @@ export const routesLinks: Array<RouteLinkType> = [
     },
   },
 
+  {
+    path: '/prospects/:id',
+    method: 'DELETE',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const prospect = await getStorage().getProspect(req.params.id);
+        if (!prospect) {
+          return routeResponse(res, { has_error: true, message: 'Prospect not found', data: null }, 404);
+        }
+        await getStorage().deleteProspect(req.params.id);
+        return routeResponse(res, { has_error: false, message: 'Prospect deleted successfully', data: { status: 'deleted' } });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to delete prospect', data: error?.message }, 500);
+      }
+    },
+  },
+
   // ==================== CALLING LIST ====================
   {
     path: "/calling-list/:fieldRepId",

@@ -15,6 +15,7 @@ export interface IProspectsRepository {
     prospect: Partial<Prospect>
   ): Promise<Prospect | null>;
   listProspectsWithoutCoordinates(): Promise<Prospect[]>;
+  deleteProspect(id: string): Promise<void>;
 }
 
 /**
@@ -58,6 +59,9 @@ export class ProspectsRepository implements IProspectsRepository {
     return await this.prospectRepo.find({
       where: [{ addressLat: IsNull() }, { addressLng: IsNull() }],
     });
+  }
+  async deleteProspect(id: string): Promise<void> {
+    await this.prospectRepo.delete(id);
   }
 }
 

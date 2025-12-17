@@ -48,22 +48,25 @@ export interface ProfessionalSearchResult {
  */
 export class GeocodingService {
   private hereApiKey: string;
+  private googleApiKey: string;
 
   constructor() {
+    this.googleApiKey = `${process.env.GOOGLE_API_KEY}`;
     this.hereApiKey = process.env.HERE_API_KEY || 'SOcYV3yCX4aztYkg3m5LTpQW4d1hHXBZo--Ue8HvzdY';
   }
 
   /**
    * Geocode a single address
    */
-  async geocodeAddress(address: string): Promise<GeocodingResult | null> {
+  async geocodeAddress(inputAddress: string): Promise<GeocodingResult | null> {
     try {
       const params = new URLSearchParams({
-        q: address,
-        apikey: this.hereApiKey,
+        address: inputAddress,
+        key: this.googleApiKey,
       });
 
-      const response = await fetch(`https://geocode.search.hereapi.com/v1/geocode?${params}`, { method: 'GET' });
+      // const response = await fetch(`https://geocode.search.hereapi.com/v1/geocode?${params}`, { method: 'GET' });
+      const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`, { method: 'GET' });
 
       if (!response.ok) {
         console.error(`Geocoding error: ${response.status}`);
@@ -72,12 +75,15 @@ export class GeocodingService {
 
       const data = await response.json() as any;
 
-      if (data.items && data.items.length > 0) {
-        const item = data.items[0];
+      if (data.results && data.results.length > 0) {
+        const item = data.results[0];
+        const address = item.formatted_address;
+        const latitude = item.geometry.location.lat;
+        const longitude = item.geometry.location.lng;
         return {
-          latitude: item.position.lat,
-          longitude: item.position.lng,
-          address: item.address.label,
+          latitude,
+          longitude,
+          address,
         };
       }
 
@@ -166,7 +172,36 @@ export class GeocodingService {
   }
 
   /**
-   * Get detailed place info from HERE Lookup API
+   * Get detailed place info from Google Place Details API
+   */
+  private async getGooglePlaceDetails(placeId: string): Promise<any> {
+    try {
+      const params = new URLSearchParams({
+        place_id: placeId,
+        fields: 'formatted_address,address_components,international_phone_number,website,opening_hours',
+        key: this.googleApiKey,
+      });
+
+      const response = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?${params}`, { method: 'GET' });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json() as any;
+      if (data.status === 'OK' && data.result) {
+        return data.result;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Place Details error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get detailed place info from HERE Lookup API (legacy, kept for backward compatibility)
    */
   private async getDetailedPlaceInfo(placeId: string): Promise<any> {
     try {
@@ -194,7 +229,7 @@ export class GeocodingService {
   async searchProfessionalsByLocation(
     specialty: string,
     location: string,
-    radius: number = 5000
+    radius: number = 3000
   ): Promise<ProfessionalSearchResult[]> {
     try {
       // First geocode the location to get coordinates
@@ -203,35 +238,44 @@ export class GeocodingService {
         return [];
       }
 
-      // Map specialty to HERE category codes and profession types
-      const categoryMap: Record<string, { query: string; profession: string }> = {
-        dental: { query: 'dentist', profession: 'Dentist' },
-        dentist: { query: 'dentist', profession: 'Dentist' },
-        chiropractor: { query: 'chiropractor', profession: 'Chiropractor' },
-        optometry: { query: 'optometrist', profession: 'Optometrist' },
-        optometrist: { query: 'optometrist', profession: 'Optometrist' },
-        'physical therapy': { query: 'physical-therapist', profession: 'Physical Therapist' },
-        'physical therapist': { query: 'physical-therapist', profession: 'Physical Therapist' },
-        orthodontics: { query: 'dentist', profession: 'Orthodontist' },
-        orthodontist: { query: 'dentist', profession: 'Orthodontist' },
-        lawyer: { query: 'lawyer', profession: 'Lawyer' },
-        attorney: { query: 'attorney', profession: 'Attorney' },
-        law: { query: 'lawyer', profession: 'Lawyer' },
-      };
+      // // Map specialty to HERE category codes and profession types
+      // const categoryMap: Record<string, { query: string; profession: string }> = {
+      //   dental: { query: 'dentist', profession: 'Dentist' },
+      //   dentist: { query: 'dentist', profession: 'Dentist' },
+      //   chiropractor: { query: 'chiropractor', profession: 'Chiropractor' },
+      //   optometry: { query: 'optometrist', profession: 'Optometrist' },
+      //   optometrist: { query: 'optometrist', profession: 'Optometrist' },
+      //   'physical therapy': { query: 'physical-therapist', profession: 'Physical Therapist' },
+      //   'physical therapist': { query: 'physical-therapist', profession: 'Physical Therapist' },
+      //   orthodontics: { query: 'dentist', profession: 'Orthodontist' },
+      //   orthodontist: { query: 'dentist', profession: 'Orthodontist' },
+      //   lawyer: { query: 'lawyer', profession: 'Lawyer' },
+      //   attorney: { query: 'attorney', profession: 'Attorney' },
+      //   law: { query: 'lawyer', profession: 'Lawyer' },
+      // };
 
-      const specialtyConfig = categoryMap[specialty.toLowerCase()] || {
+      const specialtyConfig = {
         query: specialty.toLowerCase(),
         profession: specialty.charAt(0).toUpperCase() + specialty.slice(1),
       };
 
+      // const params = new URLSearchParams({
+      //   at: `${locationResult.latitude},${locationResult.longitude}`,
+      //   q: specialtyConfig.query,
+      //   limit: '50',
+      //   apikey: this.hereApiKey,
+      // });
+
+      // const response = await fetch(`https://discover.search.hereapi.com/v1/discover?${params}`, { method: 'GET' });
+
       const params = new URLSearchParams({
-        at: `${locationResult.latitude},${locationResult.longitude}`,
-        q: specialtyConfig.query,
-        limit: '50',
-        apikey: this.hereApiKey,
+        location: `${locationResult.latitude},${locationResult.longitude}`,
+        radius: radius.toString(),
+        keyword: specialtyConfig.query,
+        key: this.googleApiKey,
       });
 
-      const response = await fetch(`https://discover.search.hereapi.com/v1/discover?${params}`, { method: 'GET' });
+      const response = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params}`, { method: 'GET' });
 
       if (!response.ok) {
         console.error(`Search error: ${response.status}`);
@@ -241,55 +285,97 @@ export class GeocodingService {
       const data = await response.json() as any;
       const results: ProfessionalSearchResult[] = [];
 
-      if (data.items && Array.isArray(data.items)) {
-        for (const item of data.items) {
-          const addr = item.address;
-          // Build clean address
-          const addressParts = [
-            addr.street ? `${addr.houseNumber || ''} ${addr.street}`.trim() : '',
-            addr.city,
-            addr.stateCode ? `${addr.stateCode} ${addr.postalCode}` : addr.postalCode,
-          ].filter(Boolean);
+      // Check for API errors
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        console.error(`Places API error: ${data.status}`, data.error_message);
+        return [];
+      }
 
-          const uniqueParts = addressParts.filter((part, idx, arr) => arr.indexOf(part) === idx);
-          const cleanAddress = uniqueParts.join(', ');
+      // Google Places API returns 'results' not 'items'
+      if (data.results && Array.isArray(data.results)) {
+        for (const item of data.results) {
+          // Google Places API structure
+          const latitude = item.geometry?.location?.lat;
+          const longitude = item.geometry?.location?.lng;
+          const name = item.name || '';
+          const phone = item.international_phone_number || item.formatted_phone_number;
+          const vicinity = item.vicinity || '';
+          const placeId = item.place_id;
 
-          // Extract contact info
-          let phone = item.contacts?.phone?.[0]?.value;
-          let email = item.contacts?.email?.[0]?.value;
-          let website = item.contacts?.website?.[0]?.value;
+          // Default values from Nearby Search
+          let address = vicinity;
+          let city: string | undefined;
+          let state: string | undefined;
+          let zip: string | undefined;
+          let website: string | undefined;
 
-          // Try Lookup API for detailed contact info
-          if (!phone && item.id) {
+          // Fetch detailed info from Place Details API if place_id is available
+          if (placeId) {
             try {
-              const detailedInfo = await this.getDetailedPlaceInfo(item.id);
-              if (detailedInfo && detailedInfo.contacts) {
-                phone = detailedInfo.contacts[0]?.phone?.[0]?.value || phone;
-                email = detailedInfo.contacts[0]?.email?.[0]?.value || email;
-                website = detailedInfo.contacts[0]?.www?.[0]?.value || website;
+              const placeDetails = await this.getGooglePlaceDetails(placeId);
+              if (placeDetails) {
+                // Use formatted_address if available
+                if (placeDetails.formatted_address) {
+                  address = placeDetails.formatted_address;
+                }
+
+                // Parse address components
+                if (placeDetails.address_components) {
+                  for (const component of placeDetails.address_components) {
+                    if (component.types.includes('locality') || component.types.includes('administrative_area_level_2')) {
+                      city = component.long_name;
+                    }
+                    if (component.types.includes('administrative_area_level_1')) {
+                      state = component.short_name;
+                    }
+                    if (component.types.includes('postal_code')) {
+                      zip = component.long_name;
+                    }
+                  }
+                }
+
+                // Get contact info
+                if (placeDetails.international_phone_number) {
+                  // phone already set from Nearby Search, but use this if not available
+                  if (!phone) {
+                    // phone = placeDetails.international_phone_number;
+                  }
+                }
+                if (placeDetails.website) {
+                  website = placeDetails.website;
+                }
               }
             } catch (e) {
-              // Silently continue if lookup fails
+              // Silently continue if Place Details fails
+              console.warn(`Failed to fetch place details for ${placeId}:`, e);
+            }
+          }
+
+          // Fallback: parse address from vicinity if no formatted address
+          if (address === vicinity && address) {
+            const addressParts = vicinity.split(',').map((part: string) => part.trim());
+            if (addressParts.length > 1 && !city) {
+              city = addressParts[addressParts.length - 1];
             }
           }
 
           results.push({
-            name: item.title || '',
+            name,
             phone,
-            email,
+            email: undefined, // Email not available in Google Places API
             website,
-            address: cleanAddress || addr.label || '',
-            city: addr.city,
-            state: addr.stateCode,
-            zip: addr.postalCode,
-            latitude: item.position.lat,
-            longitude: item.position.lng,
-            category: item.resultType,
+            address,
+            city,
+            state,
+            zip,
+            latitude,
+            longitude,
+            category: item.types?.[0] || '',
             profession: specialtyConfig.profession,
           });
 
-          // Rate limiting
-          if (!phone && item.id) {
+          // Rate limiting for Place Details API calls
+          if (placeId) {
             await new Promise((resolve) => setTimeout(resolve, 50));
           }
         }
