@@ -1,5 +1,9 @@
 import twilio from "twilio";
 import dotenv from "dotenv";
+import axios from "axios";
+import fs from "fs";
+import { join } from "path";
+import { getS3Service } from "./S3Service.js";
 
 dotenv.config();
 
@@ -166,7 +170,11 @@ export class TwilioService {
    * Get TwiML for browser-initiated calls
    * This is what gets called when frontend uses Twilio Client SDK
    */
-  getTwiMLForBrowserCall(to: string, from?: string): string {
+  getTwiMLForBrowserCall(
+    to: string,
+    from?: string,
+    prospectId?: string
+  ): string {
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const response = new VoiceResponse();
 
@@ -175,10 +183,21 @@ export class TwilioService {
         ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
         : process.env.API_BASE_URL || "http://localhost:5000";
 
+      // Build callback URLs with parameters
+      const encodedPhone = encodeURIComponent(to);
+      const recordingCallbackUrl = prospectId
+        ? `${baseUrl}/api/v1/twilio/recording?phoneNumber=${encodedPhone}&prospectId=${encodeURIComponent(
+            prospectId
+          )}`
+        : `${baseUrl}/api/v1/twilio/recording?phoneNumber=${encodedPhone}`;
+
       const dial = response.dial({
         callerId: from || this.phoneNumber || undefined,
         timeout: 30,
         answerOnBridge: true,
+        record: "record-from-answer-dual",
+        recordingStatusCallbackMethod: "POST",
+        recordingStatusCallback: recordingCallbackUrl,
       });
       dial.number(
         {
@@ -188,8 +207,11 @@ export class TwilioService {
             "answered",
             "completed",
           ],
-          statusCallback: `${baseUrl}/api/twilio/status`,
+          statusCallback: `${baseUrl}/api/v1/twilio/status${
+            prospectId ? `?prospectId=${encodeURIComponent(prospectId)}` : ""
+          }`,
         },
+
         to
       );
     } else {
@@ -197,31 +219,6 @@ export class TwilioService {
     }
 
     return response.toString();
-  }
-
-  /**
-   * Get call details from Twilio
-   */
-  async getCallDetails(callSid: string): Promise<any> {
-    if (!this.client) {
-      throw new Error("Twilio client not initialized");
-    }
-
-    try {
-      const call = await this.client.calls(callSid).fetch();
-      return {
-        sid: call.sid,
-        status: call.status,
-        duration: call.duration,
-        from: call.from,
-        to: call.to,
-        startTime: call.startTime,
-        endTime: call.endTime,
-      };
-    } catch (error) {
-      console.error("Failed to fetch call details:", error);
-      throw error;
-    }
   }
 
   /**
@@ -237,6 +234,145 @@ export class TwilioService {
   getPhoneNumber(): string | undefined {
     return this.phoneNumber;
   }
+
+  /**
+   * Download call recording from Twilio
+   * @param recordingUrl - URL of the recording from Twilio
+   * @param callSid - Twilio call SID
+   * @param phoneNumber - Phone number to include in filename (optional)
+   * @returns Object with local file path and S3 key
+   */
+  async downloadRecording(
+    recordingUrl: string,
+    callSid: string,
+    phoneNumber?: string
+  ): Promise<{ localFilePath: string; key: string }> {
+    if (!this.accountSid || !this.authToken) {
+      throw new Error("Twilio credentials not configured");
+    }
+
+    try {
+      // Use /tmp for production environments (cloud platforms), local path for development
+      const callRecordingsDir =
+        process.env.NODE_ENV === "production"
+          ? join("/tmp", "call-recordings")
+          : join(process.cwd(), "call-recordings");
+
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(callRecordingsDir)) {
+        fs.mkdirSync(callRecordingsDir, { recursive: true });
+      }
+
+      // Download recording from Twilio with authentication
+      const response = await axios.get(recordingUrl, {
+        auth: {
+          username: this.accountSid,
+          password: this.authToken,
+        },
+        responseType: "arraybuffer",
+      });
+
+      // Create descriptive filename
+      let uniqueFileName: string;
+      if (phoneNumber) {
+        const now = new Date();
+        const timestamp = now
+          .toISOString()
+          .replace(/T/, " ")
+          .replace(/\..+/, "")
+          .replace(/:/g, "-");
+
+        // Clean phone number for filename (remove special characters)
+        const cleanPhone = phoneNumber.replace(/[^\d]/g, "");
+        const formattedPhone =
+          cleanPhone.length === 11 && cleanPhone.startsWith("1")
+            ? `(${cleanPhone.slice(1, 4)}) ${cleanPhone.slice(
+                4,
+                7
+              )}-${cleanPhone.slice(7)}`
+            : cleanPhone.length === 10
+            ? `(${cleanPhone.slice(0, 3)}) ${cleanPhone.slice(
+                3,
+                6
+              )}-${cleanPhone.slice(6)}`
+            : phoneNumber;
+
+        uniqueFileName = `Call_recording_of_${formattedPhone}_at_${timestamp}.mp3`;
+      } else {
+        // Fallback to callSid-timestamp format
+        uniqueFileName = `${callSid}-${Date.now()}.mp3`;
+      }
+
+      const localFilePath = join(callRecordingsDir, uniqueFileName);
+
+      // Save file locally
+      fs.writeFileSync(localFilePath, response.data);
+      // console.log(`Recording downloaded: ${localFilePath}`);
+
+      return { localFilePath, key: uniqueFileName };
+    } catch (error) {
+      console.error("Error downloading recording from Twilio:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process recording: download from Twilio, upload to S3, cleanup local file
+   * @param recordingUrl - URL of the recording from Twilio
+   * @param callSid - Twilio call SID
+   * @param phoneNumber - Phone number to include in filename (optional)
+   * @returns S3 URL of the uploaded recording
+   */
+  async processRecording(
+    recordingUrl: string,
+    callSid: string,
+    phoneNumber?: string
+  ): Promise<string> {
+    let localFilePath: string | null = null;
+
+    try {
+      // Step 1: Download recording from Twilio
+      const downloadResult = await this.downloadRecording(
+        recordingUrl,
+        callSid,
+        phoneNumber
+      );
+      localFilePath = downloadResult.localFilePath;
+      const key = downloadResult.key;
+
+      // Step 2: Upload to S3
+      const s3Service = getS3Service();
+      if (!s3Service.isConfigured()) {
+        throw new Error("S3 service not configured");
+      }
+
+      const s3Url = await s3Service.uploadFile(
+        localFilePath,
+        key,
+        "call-recordings"
+      );
+      console.log(`Recording uploaded to S3: ${s3Url}`);
+
+      // Step 3: Cleanup local file
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+        console.log(`Local file deleted: ${localFilePath}`);
+      }
+
+      return s3Url;
+    } catch (error) {
+      // Cleanup local file on error
+      if (localFilePath && fs.existsSync(localFilePath)) {
+        try {
+          fs.unlinkSync(localFilePath);
+          console.log(`Cleaned up local file after error: ${localFilePath}`);
+        } catch (cleanupError) {
+          console.error("Error cleaning up local file:", cleanupError);
+        }
+      }
+      throw error;
+    }
+  }
 }
 
 // Singleton instance
@@ -251,21 +387,3 @@ export function getTwilioService(): TwilioService {
   }
   return twilioServiceInstance;
 }
-
-// Legacy exports for backward compatibility
-// export const isTwilioConfigured = (): boolean =>
-//   getTwilioService().isConfigured();
-// export const isTwilioVoiceConfigured = (): boolean =>
-//   getTwilioService().isVoiceConfigured();
-// export const generateAccessToken = (identity: string): string =>
-//   getTwilioService().generateAccessToken(identity);
-// export const makeOutboundCall = (to: string, callerId?: string): Promise<any> =>
-//   getTwilioService().makeOutboundCall(to, callerId);
-// export const getTwiMLForOutboundCall = (to: string): string =>
-//   getTwilioService().getTwiMLForOutboundCall(to);
-// export const getTwiMLForBrowserCall = (to: string, from?: string): string =>
-//   getTwilioService().getTwiMLForBrowserCall(to, from);
-// export const getCallDetails = (callSid: string): Promise<any> =>
-//   getTwilioService().getCallDetails(callSid);
-// export const client = getTwilioService().getClient();
-// export const phoneNumber = getTwilioService().getPhoneNumber();

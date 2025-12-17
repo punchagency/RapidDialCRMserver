@@ -1,10 +1,22 @@
-import { Request, Response } from 'express';
-import { getStorageRepository } from '../repositories/StorageRepository.js';
-import { getTwilioService } from '../services/TwilioService.js';
-import { getLiveKitService } from '../services/LiveKitService.js';
-import { getGeocodingService } from '../services/GeocodingService.js';
-import { getOptimizationService } from '../services/OptimizationService.js';
-import { getLinearService } from '../services/LinearService.js';
+import { Request, Response } from "express";
+import {
+  getAppointmentsRepository,
+  getProspectsRepository,
+  getUsersRepository,
+  getCallHistoryRepository,
+  getStakeholdersRepository,
+  getUserTerritoriesRepository,
+  getUserProfessionsRepository,
+  getIssuesRepository,
+  getSpecialtyColorsRepository,
+  getCallOutcomesRepository,
+  getFieldRepsRepository,
+} from "../repositories/index.js";
+import { getTwilioService } from "../services/TwilioService.js";
+import { getLiveKitService } from "../services/LiveKitService.js";
+import { getGeocodingService } from "../services/GeocodingService.js";
+import { getOptimizationService } from "../services/OptimizationService.js";
+import { getLinearService } from "../services/LinearService.js";
 import {
   insertProspectSchema,
   insertFieldRepSchema,
@@ -14,7 +26,7 @@ import {
   insertSpecialtyColorSchema,
   insertCallOutcomeSchema,
   insertIssueSchema,
-} from '../validators/schemas.js';
+} from "../validators/schemas.js";
 
 type ObjectValueType = {
   has_error: boolean;
@@ -29,12 +41,15 @@ type RouteLinkType = {
   handler: (req: Request, res: Response) => Promise<any>;
 };
 
-const routeResponse = (res: Response, objectValue: ObjectValueType, status?: number) => {
+const routeResponse = (
+  res: Response,
+  objectValue: ObjectValueType,
+  status?: number
+) => {
   return status ? res.status(status).json(objectValue) : res.json(objectValue);
 };
 
-// Helper function to get storage (lazy initialization)
-const getStorage = () => getStorageRepository();
+// Helper functions for services
 const getTwilio = () => getTwilioService();
 const getLiveKit = () => getLiveKitService();
 const getGeocoding = () => getGeocodingService();
@@ -54,32 +69,49 @@ export const routesLinks: Array<RouteLinkType> = [
   // ==================== HEALTH CHECK ====================
   // Note: Health check is handled in Server.ts, but keeping for consistency
   {
-    path: '/health',
-    method: 'GET',
+    path: "/health",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        return routeResponse(res, { has_error: false, message: 'Server is healthy', data: { status: 'ok' } });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Server is healthy",
+          data: { status: "ok" },
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Health check failed', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Health check failed",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== PROSPECTS ====================
   {
-    path: '/prospects',
-    method: 'GET',
+    path: "/prospects",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const territory = req.query.territory as string;
-        const limit = Math.min(parseInt((req.query.limit as string) || '20'), 100);
-        const offset = parseInt((req.query.offset as string) || '0');
+        const limit = Math.min(
+          parseInt((req.query.limit as string) || "20"),
+          100
+        );
+        const offset = parseInt((req.query.offset as string) || "0");
 
         let prospects;
         if (territory) {
-          prospects = await getStorage().listProspectsByTerritory(territory);
+          prospects = await getProspectsRepository().listProspectsByTerritory(
+            territory
+          );
         } else {
-          prospects = await getStorage().listAllProspects();
+          prospects = await getProspectsRepository().listAllProspects();
         }
 
         const total = prospects.length;
@@ -87,96 +119,182 @@ export const routesLinks: Array<RouteLinkType> = [
 
         return routeResponse(res, {
           has_error: false,
-          message: 'Prospects fetched successfully',
+          message: "Prospects fetched successfully",
           data: paginated,
           total,
           offset,
           limit,
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch prospects', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch prospects",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/prospects/:id',
-    method: 'GET',
+    path: "/prospects/:id",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospect = await getStorage().getProspect(req.params.id);
+        const prospect = await getProspectsRepository().getProspect(
+          req.params.id
+        );
         if (!prospect) {
-          return routeResponse(res, { has_error: true, message: 'Prospect not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Prospect not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Prospect fetched successfully', data: prospect });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Prospect fetched successfully",
+          data: prospect,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch prospect', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch prospect",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/prospects',
-    method: 'POST',
+    path: "/prospects",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const data = insertProspectSchema.parse(req.body);
-        const prospect = await getStorage().createProspect(data);
-        return routeResponse(res, { has_error: false, message: 'Prospect created successfully', data: prospect }, 201);
+        const prospect = await getProspectsRepository().createProspect(data);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Prospect created successfully",
+            data: prospect,
+          },
+          201
+        );
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Invalid prospect data', data: error?.message }, 400);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid prospect data",
+            data: error?.message,
+          },
+          400
+        );
       }
     },
   },
 
   {
-    path: '/prospects/:id',
-    method: 'PATCH',
+    path: "/prospects/:id",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospect = await getStorage().updateProspect(req.params.id, req.body);
+        const prospect = await getProspectsRepository().updateProspect(
+          req.params.id,
+          req.body
+        );
         if (!prospect) {
-          return routeResponse(res, { has_error: true, message: 'Prospect not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Prospect not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Prospect updated successfully', data: prospect });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Prospect updated successfully",
+          data: prospect,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update prospect', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update prospect",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/prospects/territory/:territory',
-    method: 'GET',
+    path: "/prospects/territory/:territory",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospects = await getStorage().listProspectsByTerritory(req.params.territory);
-        return routeResponse(res, { has_error: false, message: 'Prospects fetched successfully', data: prospects });
+        const prospects =
+          await getProspectsRepository().listProspectsByTerritory(
+            req.params.territory
+          );
+        return routeResponse(res, {
+          has_error: false,
+          message: "Prospects fetched successfully",
+          data: prospects,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch prospects', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch prospects",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== CALLING LIST ====================
   {
-    path: '/calling-list/:fieldRepId',
-    method: 'GET',
+    path: "/calling-list/:fieldRepId",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const { fieldRepId } = req.params;
-        const fieldRep = await getStorage().getFieldRep(fieldRepId);
+        const fieldRep = await getFieldRepsRepository().getFieldRep(fieldRepId);
 
         if (!fieldRep) {
-          return routeResponse(res, { has_error: true, message: 'Field rep not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Field rep not found", data: null },
+            404
+          );
         }
 
-        const allProspects = await getStorage().listProspectsByTerritory(fieldRep.territory);
-        const optimizedList = getOptimization().generateSmartCallingList(allProspects, fieldRep);
+        const allProspects =
+          await getProspectsRepository().listProspectsByTerritory(
+            fieldRep.territory
+          );
+        const optimizedList = getOptimization().generateSmartCallingList(
+          allProspects,
+          fieldRep
+        );
 
         return routeResponse(res, {
           has_error: false,
-          message: 'Calling list generated successfully',
+          message: "Calling list generated successfully",
           data: {
             fieldRepId,
             territory: fieldRep.territory,
@@ -185,135 +303,323 @@ export const routesLinks: Array<RouteLinkType> = [
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch calling list', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch calling list",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== FIELD REPS ====================
   {
-    path: '/field-reps',
-    method: 'GET',
+    path: "/field-reps",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const reps = await getStorage().listFieldReps();
-        return routeResponse(res, { has_error: false, message: 'Field reps fetched successfully', data: reps });
+        const reps = await getFieldRepsRepository().listFieldReps();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Field reps fetched successfully",
+          data: reps,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch field reps', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch field reps",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/field-reps',
-    method: 'POST',
+    path: "/field-reps",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const data = insertFieldRepSchema.parse(req.body);
-        const rep = await getStorage().createFieldRep(data);
-        return routeResponse(res, { has_error: false, message: 'Field rep created successfully', data: rep }, 201);
+        const rep = await getFieldRepsRepository().createFieldRep(data);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Field rep created successfully",
+            data: rep,
+          },
+          201
+        );
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Invalid field rep data', data: error?.message }, 400);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid field rep data",
+            data: error?.message,
+          },
+          400
+        );
       }
     },
   },
 
   {
-    path: '/field-reps/:id',
-    method: 'PATCH',
+    path: "/field-reps/:id",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const rep = await getStorage().updateFieldRep(req.params.id, req.body);
+        const rep = await getFieldRepsRepository().updateFieldRep(
+          req.params.id,
+          req.body
+        );
         if (!rep) {
-          return routeResponse(res, { has_error: true, message: 'Field rep not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Field rep not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Field rep updated successfully', data: rep });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Field rep updated successfully",
+          data: rep,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update field rep', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update field rep",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== APPOINTMENTS ====================
   {
-    path: '/appointments',
-    method: 'POST',
+    path: "/appointments",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const data = insertAppointmentSchema.parse(req.body);
-        const appointment = await getStorage().createAppointment(data);
-        return routeResponse(res, { has_error: false, message: 'Appointment created successfully', data: appointment }, 201);
+        const appointment = await getAppointmentsRepository().createAppointment(
+          data
+        );
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Appointment created successfully",
+            data: appointment,
+          },
+          201
+        );
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Invalid appointment data', data: error?.message }, 400);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid appointment data",
+            data: error?.message,
+          },
+          400
+        );
       }
     },
   },
 
   {
-    path: '/appointments/:fieldRepId/:date',
-    method: 'GET',
+    path: "/appointments/:fieldRepId/:date",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const appointments = await getStorage().listAppointmentsByFieldRepAndDate(req.params.fieldRepId, req.params.date);
-        return routeResponse(res, { has_error: false, message: 'Appointments fetched successfully', data: appointments });
+        const appointments =
+          await getAppointmentsRepository().listAppointmentsByFieldRepAndDate(
+            req.params.fieldRepId,
+            req.params.date
+          );
+        return routeResponse(res, {
+          has_error: false,
+          message: "Appointments fetched successfully",
+          data: appointments,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch appointments', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch appointments",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/appointments/today',
-    method: 'GET',
+    path: "/appointments/today",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const territory = req.query.territory as string | undefined;
-        const appointments = await getStorage().listTodayAppointments(territory);
-        return routeResponse(res, { has_error: false, message: "Today's appointments fetched successfully", data: appointments });
+        const appointments =
+          await getAppointmentsRepository().listTodayAppointments(territory);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Today's appointments fetched successfully",
+          data: appointments,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: "Failed to fetch today's appointments", data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch today's appointments",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/appointments/:id',
-    method: 'PATCH',
+    path: "/appointments/:id",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const appointment = await getStorage().updateAppointment(req.params.id, req.body);
+        const appointment = await getAppointmentsRepository().updateAppointment(
+          req.params.id,
+          req.body
+        );
         if (!appointment) {
-          return routeResponse(res, { has_error: true, message: 'Appointment not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Appointment not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Appointment updated successfully', data: appointment });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Appointment updated successfully",
+          data: appointment,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update appointment', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update appointment",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== CALL OUTCOMES ====================
   {
-    path: '/call-outcome',
-    method: 'POST',
+    path: "/call-outcome",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const { prospectId, callerId, outcome, notes } = req.body;
-        await getStorage().recordCallOutcome(prospectId, callerId, outcome, notes);
-        return routeResponse(res, { has_error: false, message: 'Call outcome recorded successfully', data: { status: 'recorded' } });
+        await getCallHistoryRepository().recordCallOutcome(
+          prospectId,
+          callerId,
+          outcome,
+          notes
+        );
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call outcome recorded successfully",
+          data: { status: "recorded" },
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to record call outcome', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to record call outcome",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+  {
+    path: "/call-outcomes",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const callOutcomes =
+          await getCallOutcomesRepository().listCallOutcomes();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call outcomes fetched successfully",
+          data: callOutcomes,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to record call outcome",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+  {
+    path: "/call-outcomes/init",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        await getCallOutcomesRepository().initializeCallOutcomes();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call outcomes initialized successfully",
+          data: { status: "initialized" },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to initialize call outcome",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== GEOCODING ====================
   {
-    path: '/geocode-prospects',
-    method: 'POST',
+    path: "/geocode-prospects",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const unlocated = await getStorage().listProspectsWithoutCoordinates();
+        const unlocated =
+          await getProspectsRepository().listProspectsWithoutCoordinates();
         const results = await getGeocoding().geocodeProspects(
           unlocated.map((p) => ({
             id: p.id,
@@ -326,7 +632,7 @@ export const routesLinks: Array<RouteLinkType> = [
 
         // Update prospects with coordinates
         for (const result of results) {
-          await getStorage().updateProspect(result.id, {
+          await getProspectsRepository().updateProspect(result.id, {
             addressLat: result.lat.toString(),
             addressLng: result.lng.toString(),
           });
@@ -334,618 +640,967 @@ export const routesLinks: Array<RouteLinkType> = [
 
         return routeResponse(res, {
           has_error: false,
-          message: 'Prospects geocoded successfully',
+          message: "Prospects geocoded successfully",
           data: { geocoded: results.length, total: unlocated.length },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to geocode prospects', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to geocode prospects",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/recalculate-priorities',
-    method: 'POST',
+    path: "/recalculate-priorities",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospects = await getStorage().listProspectsByTerritory((req.body.territory as string) || '');
+        const prospects =
+          await getProspectsRepository().listProspectsByTerritory(
+            (req.body.territory as string) || ""
+          );
 
         for (const prospect of prospects) {
           const score = getOptimization().calculatePriorityScore(prospect);
-          await getStorage().updateProspect(prospect.id, { priorityScore: score });
+          await getProspectsRepository().updateProspect(prospect.id, {
+            priorityScore: score,
+          });
         }
 
         return routeResponse(res, {
           has_error: false,
-          message: 'Priorities recalculated successfully',
+          message: "Priorities recalculated successfully",
           data: { updated: prospects.length },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to recalculate priorities', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to recalculate priorities",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== STAKEHOLDERS ====================
   {
-    path: '/stakeholders/:prospectId',
-    method: 'GET',
+    path: "/stakeholders/:prospectId",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const stakeholders = await getStorage().listStakeholdersByProspect(req.params.prospectId);
-        return routeResponse(res, { has_error: false, message: 'Stakeholders fetched successfully', data: stakeholders });
+        const stakeholders =
+          await getStakeholdersRepository().listStakeholdersByProspect(
+            req.params.prospectId
+          );
+        return routeResponse(res, {
+          has_error: false,
+          message: "Stakeholders fetched successfully",
+          data: stakeholders,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch stakeholders', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch stakeholders",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/stakeholders',
-    method: 'POST',
+    path: "/stakeholders",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const data = insertStakeholderSchema.parse(req.body);
-        const stakeholder = await getStorage().createStakeholder(data);
-        return routeResponse(res, { has_error: false, message: 'Stakeholder created successfully', data: stakeholder }, 201);
+        const stakeholder = await getStakeholdersRepository().createStakeholder(
+          data
+        );
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Stakeholder created successfully",
+            data: stakeholder,
+          },
+          201
+        );
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Invalid stakeholder data', data: error?.message }, 400);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid stakeholder data",
+            data: error?.message,
+          },
+          400
+        );
       }
     },
   },
 
   {
-    path: '/stakeholders/detail/:id',
-    method: 'GET',
+    path: "/stakeholders/detail/:id",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const stakeholder = await getStorage().getStakeholder(req.params.id);
+        const stakeholder = await getStakeholdersRepository().getStakeholder(
+          req.params.id
+        );
         if (!stakeholder) {
-          return routeResponse(res, { has_error: true, message: 'Stakeholder not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Stakeholder not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Stakeholder fetched successfully', data: stakeholder });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Stakeholder fetched successfully",
+          data: stakeholder,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch stakeholder', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch stakeholder",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/stakeholders/:id',
-    method: 'PATCH',
+    path: "/stakeholders/:id",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const stakeholder = await getStorage().updateStakeholder(req.params.id, req.body);
+        const stakeholder = await getStakeholdersRepository().updateStakeholder(
+          req.params.id,
+          req.body
+        );
         if (!stakeholder) {
-          return routeResponse(res, { has_error: true, message: 'Stakeholder not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Stakeholder not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Stakeholder updated successfully', data: stakeholder });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Stakeholder updated successfully",
+          data: stakeholder,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update stakeholder', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update stakeholder",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/stakeholders/:id',
-    method: 'DELETE',
+    path: "/stakeholders/:id",
+    method: "DELETE",
     handler: async (req: Request, res: Response) => {
       try {
-        await getStorage().deleteStakeholder(req.params.id);
-        return routeResponse(res, { has_error: false, message: 'Stakeholder deleted successfully', data: { status: 'deleted' } });
+        await getStakeholdersRepository().deleteStakeholder(req.params.id);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Stakeholder deleted successfully",
+          data: { status: "deleted" },
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to delete stakeholder', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete stakeholder",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== USERS ====================
   {
-    path: '/users',
-    method: 'GET',
+    path: "/users",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const users = await getStorage().listUsers();
-        return routeResponse(res, { has_error: false, message: 'Users fetched successfully', data: users });
+        const users = await getUsersRepository().listUsers();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Users fetched successfully",
+          data: users,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch users', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch users",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users',
-    method: 'POST',
+    path: "/users",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const data = insertUserSchema.parse(req.body);
-        const user = await getStorage().createUser(data);
-        return routeResponse(res, { has_error: false, message: 'User created successfully', data: user }, 201);
+        const user = await getUsersRepository().createUser(data);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "User created successfully",
+            data: user,
+          },
+          201
+        );
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Invalid user data', data: error?.message }, 400);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid user data",
+            data: error?.message,
+          },
+          400
+        );
       }
     },
   },
 
   {
-    path: '/users/:id',
-    method: 'GET',
+    path: "/users/:id",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const user = await getStorage().getUser(req.params.id);
+        const user = await getUsersRepository().getUser(req.params.id);
         if (!user) {
-          return routeResponse(res, { has_error: true, message: 'User not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "User not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'User fetched successfully', data: user });
+        return routeResponse(res, {
+          has_error: false,
+          message: "User fetched successfully",
+          data: user,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch user', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch user",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users/email/:email',
-    method: 'GET',
+    path: "/users/email/:email",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const user = await getStorage().getUserByEmail(req.params.email);
+        const user = await getUsersRepository().getUserByEmail(
+          req.params.email
+        );
         if (!user) {
-          return routeResponse(res, { has_error: true, message: 'User not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "User not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'User fetched successfully', data: user });
+        return routeResponse(res, {
+          has_error: false,
+          message: "User fetched successfully",
+          data: user,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch user', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch user",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users/:id',
-    method: 'PATCH',
+    path: "/users/:id",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const user = await getStorage().updateUser(req.params.id, req.body);
+        const user = await getUsersRepository().updateUser(
+          req.params.id,
+          req.body
+        );
         if (!user) {
-          return routeResponse(res, { has_error: true, message: 'User not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "User not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'User updated successfully', data: user });
+        return routeResponse(res, {
+          has_error: false,
+          message: "User updated successfully",
+          data: user,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update user', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update user",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users/:id',
-    method: 'DELETE',
+    path: "/users/:id",
+    method: "DELETE",
     handler: async (req: Request, res: Response) => {
       try {
-        await getStorage().deleteUser(req.params.id);
-        return routeResponse(res, { has_error: false, message: 'User deleted successfully', data: { status: 'deleted' } });
+        await getUsersRepository().deleteUser(req.params.id);
+        return routeResponse(res, {
+          has_error: false,
+          message: "User deleted successfully",
+          data: { status: "deleted" },
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to delete user', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete user",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== USER TERRITORIES & PROFESSIONS ====================
   {
-    path: '/users/:id/territories',
-    method: 'GET',
+    path: "/users/:id/territories",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const territories = await getStorage().getUserTerritories(req.params.id);
+        const territories =
+          await getUserTerritoriesRepository().getUserTerritories(
+            req.params.id
+          );
         return routeResponse(res, {
           has_error: false,
-          message: 'User territories fetched successfully',
+          message: "User territories fetched successfully",
           data: territories.map((t) => t.territory),
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch user territories', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch user territories",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users/:id/territories',
-    method: 'PUT',
+    path: "/users/:id/territories",
+    method: "PUT",
     handler: async (req: Request, res: Response) => {
       try {
         const { territories } = req.body;
         if (!Array.isArray(territories)) {
-          return routeResponse(res, { has_error: true, message: 'territories must be an array', data: null }, 400);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "territories must be an array",
+              data: null,
+            },
+            400
+          );
         }
-        const result = await getStorage().setUserTerritories(req.params.id, territories);
+        const result = await getUserTerritoriesRepository().setUserTerritories(
+          req.params.id,
+          territories
+        );
         return routeResponse(res, {
           has_error: false,
-          message: 'User territories updated successfully',
-          data: result.map((t) => t.territory),
+          message: "User territories updated successfully",
+          data: result!.map((t) => t.territory),
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update user territories', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update user territories",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/territories',
-    method: 'GET',
+    path: "/territories",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const territories = await getStorage().listAllTerritories();
-        return routeResponse(res, { has_error: false, message: 'Territories fetched successfully', data: territories });
-      } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch territories', data: error?.message }, 500);
-      }
-    },
-  },
-
-  {
-    path: '/users/:id/professions',
-    method: 'GET',
-    handler: async (req: Request, res: Response) => {
-      try {
-        const professions = await getStorage().getUserProfessions(req.params.id);
+        const territories =
+          await getUserTerritoriesRepository().listAllTerritories();
         return routeResponse(res, {
           has_error: false,
-          message: 'User professions fetched successfully',
+          message: "Territories fetched successfully",
+          data: territories,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch territories",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/users/:id/professions",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const professions =
+          await getUserProfessionsRepository().getUserProfessions(
+            req.params.id
+          );
+        return routeResponse(res, {
+          has_error: false,
+          message: "User professions fetched successfully",
           data: professions.map((p) => p.profession),
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch user professions', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch user professions",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users/:id/professions',
-    method: 'PUT',
+    path: "/users/:id/professions",
+    method: "PUT",
     handler: async (req: Request, res: Response) => {
       try {
         const { professions } = req.body;
         if (!Array.isArray(professions)) {
-          return routeResponse(res, { has_error: true, message: 'professions must be an array', data: null }, 400);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "professions must be an array",
+              data: null,
+            },
+            400
+          );
         }
-        const result = await getStorage().setUserProfessions(req.params.id, professions);
+        const result = await getUserProfessionsRepository().setUserProfessions(
+          req.params.id,
+          professions
+        );
         return routeResponse(res, {
           has_error: false,
-          message: 'User professions updated successfully',
+          message: "User professions updated successfully",
           data: result.map((p) => p.profession),
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update user professions', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update user professions",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/professions',
-    method: 'GET',
+    path: "/professions",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const professions = await getStorage().listAllProfessions();
-        return routeResponse(res, { has_error: false, message: 'Professions fetched successfully', data: professions });
+        const professions =
+          await getUserProfessionsRepository().listAllProfessions();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Professions fetched successfully",
+          data: professions,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch professions', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch professions",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users/:id/assignments',
-    method: 'GET',
+    path: "/users/:id/assignments",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const [territories, professions] = await Promise.all([
-          getStorage().getUserTerritories(req.params.id),
-          getStorage().getUserProfessions(req.params.id),
+          getUserTerritoriesRepository().getUserTerritories(req.params.id),
+          getUserProfessionsRepository().getUserProfessions(req.params.id),
         ]);
         return routeResponse(res, {
           has_error: false,
-          message: 'User assignments fetched successfully',
+          message: "User assignments fetched successfully",
           data: {
             territories: territories.map((t) => t.territory),
             professions: professions.map((p) => p.profession),
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch user assignments', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch user assignments",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/users/:id/assignments',
-    method: 'PUT',
+    path: "/users/:id/assignments",
+    method: "PUT",
     handler: async (req: Request, res: Response) => {
       try {
         const { territories, professions } = req.body;
         if (!Array.isArray(territories) || !Array.isArray(professions)) {
-          return routeResponse(res, { has_error: true, message: 'territories and professions must be arrays', data: null }, 400);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "territories and professions must be arrays",
+              data: null,
+            },
+            400
+          );
         }
 
         const [newTerritories, newProfessions] = await Promise.all([
-          getStorage().setUserTerritories(req.params.id, territories),
-          getStorage().setUserProfessions(req.params.id, professions),
+          getUserTerritoriesRepository().setUserTerritories(
+            req.params.id,
+            territories
+          ),
+          getUserProfessionsRepository().setUserProfessions(
+            req.params.id,
+            professions
+          ),
         ]);
 
         return routeResponse(res, {
           has_error: false,
-          message: 'User assignments updated successfully',
+          message: "User assignments updated successfully",
           data: {
-            territories: newTerritories.map((t) => t.territory),
+            territories: newTerritories!.map((t) => t.territory),
             professions: newProfessions.map((p) => p.profession),
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update user assignments', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update user assignments",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== SPECIALTY COLORS ====================
   {
-    path: '/specialty-colors',
-    method: 'GET',
+    path: "/specialty-colors",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const now = Date.now();
         // Cache for 5 minutes
         if (cachedColors && now - colorsCacheTime < 300000) {
-          return routeResponse(res, { has_error: false, message: 'Specialty colors fetched successfully', data: cachedColors });
+          return routeResponse(res, {
+            has_error: false,
+            message: "Specialty colors fetched successfully",
+            data: cachedColors,
+          });
         }
 
-        const colors = await getStorage().listSpecialtyColors();
+        const colors =
+          await getSpecialtyColorsRepository().listSpecialtyColors();
         cachedColors = colors;
         colorsCacheTime = now;
-        return routeResponse(res, { has_error: false, message: 'Specialty colors fetched successfully', data: colors });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Specialty colors fetched successfully",
+          data: colors,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch specialty colors', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch specialty colors",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/specialty-colors/:specialty',
-    method: 'GET',
+    path: "/specialty-colors/:specialty",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const color = await getStorage().getSpecialtyColor(req.params.specialty);
+        const color = await getSpecialtyColorsRepository().getSpecialtyColor(
+          req.params.specialty
+        );
         if (!color) {
-          return routeResponse(res, { has_error: true, message: 'Specialty color not found', data: null }, 404);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Specialty color not found",
+              data: null,
+            },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Specialty color fetched successfully', data: color });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Specialty color fetched successfully",
+          data: color,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch specialty color', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch specialty color",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/specialty-colors/:specialty',
-    method: 'PATCH',
+    path: "/specialty-colors/:specialty",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const color = await getStorage().updateSpecialtyColor(req.params.specialty, req.body);
+        const color = await getSpecialtyColorsRepository().updateSpecialtyColor(
+          req.params.specialty,
+          req.body
+        );
         if (!color) {
-          return routeResponse(res, { has_error: true, message: 'Specialty color not found', data: null }, 404);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Specialty color not found",
+              data: null,
+            },
+            404
+          );
         }
         cachedColors = null; // Clear cache
-        return routeResponse(res, { has_error: false, message: 'Specialty color updated successfully', data: color });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Specialty color updated successfully",
+          data: color,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update specialty color', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update specialty color",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== CALL OUTCOMES ====================
   {
-    path: '/call-outcomes',
-    method: 'GET',
+    path: "/call-outcomes",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const now = Date.now();
         // Cache for 5 minutes
         if (cachedOutcomes && now - outcomesCacheTime < 300000) {
-          return routeResponse(res, { has_error: false, message: 'Call outcomes fetched successfully', data: cachedOutcomes });
+          return routeResponse(res, {
+            has_error: false,
+            message: "Call outcomes fetched successfully",
+            data: cachedOutcomes,
+          });
         }
 
-        const outcomes = await getStorage().listCallOutcomes();
+        const outcomes = await getCallOutcomesRepository().listCallOutcomes();
         cachedOutcomes = outcomes;
         outcomesCacheTime = now;
-        return routeResponse(res, { has_error: false, message: 'Call outcomes fetched successfully', data: outcomes });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call outcomes fetched successfully",
+          data: outcomes,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch call outcomes', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch call outcomes",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/call-outcomes',
-    method: 'POST',
+    path: "/call-outcomes",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const data = insertCallOutcomeSchema.parse(req.body);
-        const outcome = await getStorage().createCallOutcome(data);
+        const outcome = await getCallOutcomesRepository().createCallOutcome(
+          data
+        );
         cachedOutcomes = null; // Clear cache
-        return routeResponse(res, { has_error: false, message: 'Call outcome created successfully', data: outcome }, 201);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Call outcome created successfully",
+            data: outcome,
+          },
+          201
+        );
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Invalid call outcome data', data: error?.message }, 400);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid call outcome data",
+            data: error?.message,
+          },
+          400
+        );
       }
     },
   },
 
   {
-    path: '/call-outcomes/:id',
-    method: 'PATCH',
+    path: "/call-outcomes/:id",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const outcome = await getStorage().updateCallOutcome(req.params.id, req.body);
+        const outcome = await getCallOutcomesRepository().updateCallOutcome(
+          req.params.id,
+          req.body
+        );
         if (!outcome) {
-          return routeResponse(res, { has_error: true, message: 'Call outcome not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Call outcome not found", data: null },
+            404
+          );
         }
         cachedOutcomes = null; // Clear cache
-        return routeResponse(res, { has_error: false, message: 'Call outcome updated successfully', data: outcome });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call outcome updated successfully",
+          data: outcome,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update call outcome', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update call outcome",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/call-outcomes/:id',
-    method: 'DELETE',
+    path: "/call-outcomes/:id",
+    method: "DELETE",
     handler: async (req: Request, res: Response) => {
       try {
-        await getStorage().deleteCallOutcome(req.params.id);
+        await getCallOutcomesRepository().deleteCallOutcome(req.params.id);
         cachedOutcomes = null; // Clear cache
-        return routeResponse(res, { has_error: false, message: 'Call outcome deleted successfully', data: { success: true } });
-      } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to delete call outcome', data: error?.message }, 500);
-      }
-    },
-  },
-
-  // ==================== TWILIO ====================
-  {
-    path: '/twilio/token',
-    method: 'POST',
-    handler: async (req: Request, res: Response) => {
-      try {
-        const { identity } = req.body;
-        if (!identity) {
-          return routeResponse(res, { has_error: true, message: 'Identity is required', data: null }, 400);
-        }
-
-        const token = getTwilio().generateAccessToken(identity);
-        return routeResponse(res, { has_error: false, message: 'Twilio token generated successfully', data: { token, identity } });
-      } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to generate Twilio token', data: error?.message }, 500);
-      }
-    },
-  },
-
-  {
-    path: '/twilio/voice',
-    method: 'POST',
-    handler: async (req: Request, res: Response) => {
-      try {
-        const to = req.body.To || req.body.to;
-        const twiml = getTwilio().getTwiMLForBrowserCall(to);
-        res.type('text/xml');
-        return res.send(twiml);
-      } catch (error: any) {
-        return res.status(500).send('Error generating TwiML');
-      }
-    },
-  },
-
-  {
-    path: '/twilio/call',
-    method: 'POST',
-    handler: async (req: Request, res: Response) => {
-      try {
-        const { to, prospectId } = req.body;
-        if (!to) {
-          return routeResponse(res, { has_error: true, message: 'Phone number (to) is required', data: null }, 400);
-        }
-
-        const call = await getTwilio().makeOutboundCall(to);
-
-        // Log call attempt if prospectId provided
-        if (prospectId) {
-          await getStorage().recordCallOutcome(prospectId, 'system', 'Call initiated', `Call SID: ${call.sid}`);
-        }
-
         return routeResponse(res, {
           has_error: false,
-          message: 'Call initiated successfully',
-          data: {
-            success: true,
-            callSid: call.sid,
-            status: call.status,
-            to: call.to,
-            from: call.from,
-          },
+          message: "Call outcome deleted successfully",
+          data: { success: true },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to initiate call', data: error?.message }, 500);
-      }
-    },
-  },
-
-  {
-    path: '/twilio/status',
-    method: 'POST',
-    handler: async (req: Request, res: Response) => {
-      try {
-        const { CallSid, CallStatus, To, Duration } = req.body;
-        console.log(`Call ${CallSid} to ${To}: ${CallStatus} (duration: ${Duration}s)`);
-        return res.sendStatus(200);
-      } catch (error: any) {
-        return res.sendStatus(500);
-      }
-    },
-  },
-
-  {
-    path: '/twilio/config',
-    method: 'GET',
-    handler: async (req: Request, res: Response) => {
-      try {
-        const phoneNumber = getTwilio().getPhoneNumber();
-        return routeResponse(res, {
-          has_error: false,
-          message: 'Twilio config fetched successfully',
-          data: {
-            configured: getTwilio().isConfigured(),
-            phoneNumber: phoneNumber
-              ? phoneNumber.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')
-              : null,
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete call outcome",
+            data: error?.message,
           },
-        });
-      } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch Twilio config', data: error?.message }, 500);
+          500
+        );
       }
     },
   },
 
   // ==================== LIVEKIT ====================
   {
-    path: '/livekit/config',
-    method: 'GET',
+    path: "/livekit/config",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         return routeResponse(res, {
           has_error: false,
-          message: 'LiveKit config fetched successfully',
+          message: "LiveKit config fetched successfully",
           data: {
             configured: getLiveKit().isConfigured(),
             url: getLiveKit().getLiveKitUrl(),
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch LiveKit config', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch LiveKit config",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/livekit/token',
-    method: 'POST',
+    path: "/livekit/token",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const { identity, roomName, name } = req.body;
         if (!identity) {
-          return routeResponse(res, { has_error: true, message: 'Identity is required', data: null }, 400);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Identity is required", data: null },
+            400
+          );
         }
 
         const room = roomName || `room_${identity}_${Date.now()}`;
-        const token = await getLiveKit().generateLiveKitToken(identity, room, { name });
+        const token = await getLiveKit().generateLiveKitToken(identity, room, {
+          name,
+        });
 
         return routeResponse(res, {
           has_error: false,
-          message: 'LiveKit token generated successfully',
+          message: "LiveKit token generated successfully",
           data: {
             token,
             identity,
@@ -954,32 +1609,60 @@ export const routesLinks: Array<RouteLinkType> = [
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to generate LiveKit token', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to generate LiveKit token",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/livekit/call',
-    method: 'POST',
+    path: "/livekit/call",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const { callerId, callerName, phoneNumber, prospectId } = req.body;
         if (!callerId || !phoneNumber) {
-          return routeResponse(res, { has_error: true, message: 'callerId and phoneNumber are required', data: null }, 400);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "callerId and phoneNumber are required",
+              data: null,
+            },
+            400
+          );
         }
 
-        const roomName = getLiveKit().generateCallRoomName(callerId, phoneNumber);
-        const token = await getLiveKit().generateLiveKitToken(callerId, roomName, { name: callerName });
+        const roomName = getLiveKit().generateCallRoomName(
+          callerId,
+          phoneNumber
+        );
+        const token = await getLiveKit().generateLiveKitToken(
+          callerId,
+          roomName,
+          { name: callerName }
+        );
 
         // Log call attempt if prospectId provided
         if (prospectId) {
-          await getStorage().recordCallOutcome(prospectId, callerId, 'Call initiated', `LiveKit Room: ${roomName}`);
+          await getCallHistoryRepository().recordCallOutcome(
+            prospectId,
+            callerId,
+            "Call initiated",
+            `LiveKit Room: ${roomName}`
+          );
         }
 
         return routeResponse(res, {
           has_error: false,
-          message: 'Call room created successfully',
+          message: "Call room created successfully",
           data: {
             success: true,
             roomName,
@@ -989,79 +1672,132 @@ export const routesLinks: Array<RouteLinkType> = [
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to create call room', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to create call room",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/livekit/end-call',
-    method: 'POST',
+    path: "/livekit/end-call",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const { roomName, prospectId, callerId, outcome, notes, duration } = req.body;
+        const { roomName, prospectId, callerId, outcome, notes, duration } =
+          req.body;
 
         if (prospectId && callerId) {
-          const outcomeText = outcome || 'Call ended';
-          const noteText = notes || `Duration: ${duration || 0}s, Room: ${roomName}`;
-          await getStorage().recordCallOutcome(prospectId, callerId, outcomeText, noteText);
+          const outcomeText = outcome || "Call ended";
+          const noteText =
+            notes || `Duration: ${duration || 0}s, Room: ${roomName}`;
+          await getCallHistoryRepository().recordCallOutcome(
+            prospectId,
+            callerId,
+            outcomeText,
+            noteText
+          );
         }
 
-        return routeResponse(res, { has_error: false, message: 'Call ended successfully', data: { success: true } });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call ended successfully",
+          data: { success: true },
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to record call end', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to record call end",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== BULK OPERATIONS ====================
   {
-    path: '/bulk-search',
-    method: 'POST',
+    path: "/bulk-search",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const { specialty, location } = req.body;
         if (!specialty || !location) {
-          return routeResponse(res, { has_error: true, message: 'Missing specialty or location', data: null }, 400);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Missing specialty or location",
+              data: null,
+            },
+            400
+          );
         }
 
-        const results = await getGeocoding().searchProfessionalsByLocation(specialty, location);
-        return routeResponse(res, { has_error: false, message: 'Search completed successfully', data: { results } });
+        const results = await getGeocoding().searchProfessionalsByLocation(
+          specialty,
+          location
+        );
+        return routeResponse(res, {
+          has_error: false,
+          message: "Search completed successfully",
+          data: { results },
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Search failed', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          { has_error: true, message: "Search failed", data: error?.message },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/bulk-add',
-    method: 'POST',
+    path: "/bulk-add",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const { contacts, territory, specialty } = req.body;
         if (!Array.isArray(contacts) || !territory || !specialty) {
-          return routeResponse(res, { has_error: true, message: 'Invalid request body', data: null }, 400);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Invalid request body", data: null },
+            400
+          );
         }
 
-        const existingProspects = await getStorage().listAllProspects();
-        const existingPhones = new Set(existingProspects.map((p) => p.phoneNumber));
+        const existingProspects =
+          await getProspectsRepository().listAllProspects();
+        const existingPhones = new Set(
+          existingProspects.map((p) => p.phoneNumber)
+        );
 
         const added: any[] = [];
         const skipped: any[] = [];
 
         for (const contact of contacts) {
           if (!contact.phone) {
-            skipped.push({ name: contact.name, reason: 'No phone number' });
+            skipped.push({ name: contact.name, reason: "No phone number" });
             continue;
           }
 
           if (existingPhones.has(contact.phone)) {
-            skipped.push({ name: contact.name, reason: 'Already in database' });
+            skipped.push({ name: contact.name, reason: "Already in database" });
             continue;
           }
 
           try {
-            const prospect = await getStorage().createProspect({
+            const prospect = await getProspectsRepository().createProspect({
               businessName: contact.name,
               phoneNumber: contact.phone,
               addressStreet: contact.address,
@@ -1075,13 +1811,13 @@ export const routesLinks: Array<RouteLinkType> = [
             });
             added.push(prospect);
           } catch (err) {
-            skipped.push({ name: contact.name, reason: 'Failed to add' });
+            skipped.push({ name: contact.name, reason: "Failed to add" });
           }
         }
 
         return routeResponse(res, {
           has_error: false,
-          message: 'Bulk add completed',
+          message: "Bulk add completed",
           data: {
             added: added.length,
             skipped: skipped.length,
@@ -1089,26 +1825,39 @@ export const routesLinks: Array<RouteLinkType> = [
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to add contacts', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to add contacts",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/update-prospect-addresses',
-    method: 'POST',
+    path: "/update-prospect-addresses",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospects = await getStorage().listAllProspects();
+        const prospects = await getProspectsRepository().listAllProspects();
         let updated = 0;
         let failed = 0;
         const errors: string[] = [];
 
         for (const prospect of prospects) {
           try {
-            const address = [prospect.addressStreet, prospect.addressCity, prospect.addressState, prospect.addressZip]
+            const address = [
+              prospect.addressStreet,
+              prospect.addressCity,
+              prospect.addressState,
+              prospect.addressZip,
+            ]
               .filter(Boolean)
-              .join(', ');
+              .join(", ");
 
             if (!address) {
               failed++;
@@ -1118,7 +1867,7 @@ export const routesLinks: Array<RouteLinkType> = [
 
             const result = await getGeocoding().getFullAddressFromHere(address);
             if (result) {
-              await getStorage().updateProspect(prospect.id, {
+              await getProspectsRepository().updateProspect(prospect.id, {
                 addressStreet: result.street || prospect.addressStreet,
                 addressCity: result.city || prospect.addressCity,
                 addressState: result.state || prospect.addressState,
@@ -1136,13 +1885,17 @@ export const routesLinks: Array<RouteLinkType> = [
             await new Promise((resolve) => setTimeout(resolve, 200));
           } catch (err) {
             failed++;
-            errors.push(`Prospect ${prospect.id}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            errors.push(
+              `Prospect ${prospect.id}: ${
+                err instanceof Error ? err.message : "Unknown error"
+              }`
+            );
           }
         }
 
         return routeResponse(res, {
           has_error: false,
-          message: 'Prospect addresses updated',
+          message: "Prospect addresses updated",
           data: {
             total: prospects.length,
             updated,
@@ -1151,45 +1904,81 @@ export const routesLinks: Array<RouteLinkType> = [
           },
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update prospect addresses', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update prospect addresses",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== ISSUES ====================
   {
-    path: '/issues',
-    method: 'GET',
+    path: "/issues",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const status = req.query.status as string | undefined;
-        const issues = await getStorage().listIssues(status);
-        return routeResponse(res, { has_error: false, message: 'Issues fetched successfully', data: issues });
+        const issues = await getIssuesRepository().listIssues(status);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Issues fetched successfully",
+          data: issues,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch issues', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch issues",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/issues/:id',
-    method: 'GET',
+    path: "/issues/:id",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const issue = await getStorage().getIssue(req.params.id);
+        const issue = await getIssuesRepository().getIssue(req.params.id);
         if (!issue) {
-          return routeResponse(res, { has_error: true, message: 'Issue not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Issue not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Issue fetched successfully', data: issue });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Issue fetched successfully",
+          data: issue,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch issue', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch issue",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/issues',
-    method: 'POST',
+    path: "/issues",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const data = insertIssueSchema.parse(req.body);
@@ -1212,77 +2001,328 @@ export const routesLinks: Array<RouteLinkType> = [
               linearIssueUrl = linearIssue.url;
             }
           } catch (linearError) {
-            console.warn('Failed to sync to Linear:', linearError);
+            console.warn("Failed to sync to Linear:", linearError);
           }
         }
 
-        const issue = await getStorage().createIssue({
+        const issue = await getIssuesRepository().createIssue({
           ...data,
           priority: (data.priority || 2) as 0 | 1 | 2 | 3 | 4,
           linearIssueId: linearIssueId || undefined,
           linearIssueUrl: linearIssueUrl || undefined,
         });
 
-        return routeResponse(res, { has_error: false, message: 'Issue created successfully', data: issue }, 201);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Issue created successfully",
+            data: issue,
+          },
+          201
+        );
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Invalid issue data', data: error?.message }, 400);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid issue data",
+            data: error?.message,
+          },
+          400
+        );
       }
     },
   },
 
   {
-    path: '/issues/:id',
-    method: 'PATCH',
+    path: "/issues/:id",
+    method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const issue = await getStorage().updateIssue(req.params.id, req.body);
+        const issue = await getIssuesRepository().updateIssue(
+          req.params.id,
+          req.body
+        );
         if (!issue) {
-          return routeResponse(res, { has_error: true, message: 'Issue not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Issue not found", data: null },
+            404
+          );
         }
-        return routeResponse(res, { has_error: false, message: 'Issue updated successfully', data: issue });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Issue updated successfully",
+          data: issue,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to update issue', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update issue",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/issues/:id',
-    method: 'DELETE',
+    path: "/issues/:id",
+    method: "DELETE",
     handler: async (req: Request, res: Response) => {
       try {
-        await getStorage().deleteIssue(req.params.id);
-        return routeResponse(res, { has_error: false, message: 'Issue deleted successfully', data: { success: true } });
+        await getIssuesRepository().deleteIssue(req.params.id);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Issue deleted successfully",
+          data: { success: true },
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to delete issue', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete issue",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   // ==================== LINEAR ====================
   {
-    path: '/linear/teams',
-    method: 'GET',
+    path: "/linear/teams",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const teams = await getLinear().getLinearTeams();
-        return routeResponse(res, { has_error: false, message: 'Linear teams fetched successfully', data: teams });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Linear teams fetched successfully",
+          data: teams,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch Linear teams', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch Linear teams",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
 
   {
-    path: '/linear/issues',
-    method: 'GET',
+    path: "/linear/issues",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const teamId = req.query.teamId as string | undefined;
         const issues = await getLinear().getLinearIssues(teamId);
-        return routeResponse(res, { has_error: false, message: 'Linear issues fetched successfully', data: issues });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Linear issues fetched successfully",
+          data: issues,
+        });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch Linear issues', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch Linear issues",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  // ==================== TWILIO ====================
+  {
+    path: "/twilio/token",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { identity } = req.body;
+        if (!identity) {
+          return routeResponse(
+            res,
+            { has_error: true, message: "Identity is required", data: null },
+            400
+          );
+        }
+
+        const token = getTwilioService().generateAccessToken(identity);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Twilio token generated successfully",
+          data: { token, identity },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to generate Twilio token",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/twilio/voice",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const to = req.body.To || req.body.to;
+        const prospectId = req.body.prospectId;
+        console.log("twilio voice", req.body);
+        console.log("twilio voice", to);
+        console.log("twilio voice", prospectId);
+        const twiml = getTwilioService().getTwiMLForBrowserCall(
+          to,
+          undefined,
+          prospectId
+        );
+        res.type("text/xml");
+        return res.send(twiml);
+      } catch (error: any) {
+        return res.status(500).send("Error generating TwiML");
+      }
+    },
+  },
+
+  {
+    path: "/twilio/status",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { CallSid, CallStatus, To, Duration } = req.body;
+        const prospectId = req.query.prospectId as string | undefined;
+
+        console.log(
+          `Call ${CallSid} to ${To}: ${CallStatus} (duration: ${Duration}s)`
+        );
+        if (prospectId) {
+          console.log(`ProspectId: ${prospectId}`);
+        }
+
+        // Save call status to database
+        if (CallSid && CallStatus) {
+          await getCallHistoryRepository().upsertCallHistory({
+            callSid: CallSid,
+            status: CallStatus,
+            prospectId,
+          });
+        }
+
+        return res.sendStatus(200);
+      } catch (error: any) {
+        return res.sendStatus(500);
+      }
+    },
+  },
+
+  {
+    path: "/twilio/recording",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { RecordingUrl, CallSid, RecordingDuration, To, From } = req.body;
+
+        console.log(`Received recording webhook for call ${CallSid}`);
+        console.log(`Webhook body:`, JSON.stringify(req.body, null, 2));
+
+        if (!RecordingUrl || !CallSid) {
+          console.error("Missing RecordingUrl or CallSid in webhook");
+          return res.sendStatus(400);
+        }
+
+        // Process recording asynchronously (don't block Twilio webhook)
+        (async () => {
+          try {
+            // Download from Twilio, upload to S3
+            const recordingService = getTwilio();
+
+            // Get phone number from query parameter (we pass it in recordingStatusCallback URL)
+            // Fallback to webhook body if not in query params
+            let phoneNumber = req.query.phoneNumber as string | undefined;
+
+            const s3Url = await recordingService.processRecording(
+              RecordingUrl,
+              CallSid,
+              phoneNumber
+            );
+
+            // Save recording URL and duration to database
+            await getCallHistoryRepository().upsertCallHistory({
+              callSid: CallSid,
+              recordingUrl: s3Url,
+              duration: RecordingDuration
+                ? parseInt(RecordingDuration)
+                : undefined,
+              outcome: "Call completed",
+            });
+
+            console.log(
+              `Successfully processed recording for ${CallSid}: ${s3Url}`
+            );
+          } catch (error: any) {
+            console.error(
+              `Error processing recording for ${CallSid}:`,
+              error?.message || error
+            );
+          }
+        })();
+
+        // Immediately respond to Twilio
+        return res.sendStatus(200);
+      } catch (error: any) {
+        console.error("Error in recording webhook:", error);
+        return res.sendStatus(500);
+      }
+    },
+  },
+
+  {
+    path: "/twilio/config",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const phoneNumber = getTwilioService().getPhoneNumber();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Twilio config fetched successfully",
+          data: {
+            configured: getTwilioService().isConfigured(),
+            phoneNumber: phoneNumber
+              ? phoneNumber.replace(/(\d{3})\d{4}(\d{4})/, "$1****$2")
+              : null,
+          },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch Twilio config",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
