@@ -1725,7 +1725,6 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const territories = await getTerritoriesRepository().getAllTerritories();
-        console.log("territories", territories);
         return routeResponse(res, {
           has_error: false,
           message: "Territories fetched successfully",
