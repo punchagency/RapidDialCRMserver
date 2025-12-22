@@ -113,3 +113,17 @@ export const insertIssueSchema = z.object({
   createdBy: z.string().max(100).optional(),
 });
 
+// Territory schemas
+export const insertTerritorySchema = z.object({
+  name: z.string().min(1).max(50),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+// Profession schemas
+export const insertProfessionSchema = z.object({
+  name: z.string().min(1).max(50),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+

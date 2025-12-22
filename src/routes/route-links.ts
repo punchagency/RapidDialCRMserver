@@ -7,11 +7,13 @@ import {
   getStakeholdersRepository,
   getUserTerritoriesRepository,
   getUserProfessionsRepository,
+  getTerritoriesRepository,
+  getProfessionsRepository,
   getIssuesRepository,
   getSpecialtyColorsRepository,
   getCallOutcomesRepository,
   getFieldRepsRepository,
-  
+
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
 import { getLiveKitService } from "../services/LiveKitService.js";
@@ -32,6 +34,8 @@ import {
   insertSpecialtyColorSchema,
   insertCallOutcomeSchema,
   insertIssueSchema,
+  insertTerritorySchema,
+  insertProfessionSchema,
 } from "../validators/schemas.js";
 
 type ObjectValueType = {
@@ -1448,32 +1452,6 @@ export const routesLinks: Array<RouteLinkType> = [
   },
 
   {
-    path: "/territories",
-    method: "GET",
-    handler: async (req: Request, res: Response) => {
-      try {
-        const territories =
-          await getUserTerritoriesRepository().listAllTerritories();
-        return routeResponse(res, {
-          has_error: false,
-          message: "Territories fetched successfully",
-          data: territories,
-        });
-      } catch (error: any) {
-        return routeResponse(
-          res,
-          {
-            has_error: true,
-            message: "Failed to fetch territories",
-            data: error?.message,
-          },
-          500
-        );
-      }
-    },
-  },
-
-  {
     path: "/users/:id/professions",
     method: "GET",
     handler: async (req: Request, res: Response) => {
@@ -1533,32 +1511,6 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to update user professions",
-            data: error?.message,
-          },
-          500
-        );
-      }
-    },
-  },
-
-  {
-    path: "/professions",
-    method: "GET",
-    handler: async (req: Request, res: Response) => {
-      try {
-        const professions =
-          await getUserProfessionsRepository().listAllProfessions();
-        return routeResponse(res, {
-          has_error: false,
-          message: "Professions fetched successfully",
-          data: professions,
-        });
-      } catch (error: any) {
-        return routeResponse(
-          res,
-          {
-            has_error: true,
-            message: "Failed to fetch professions",
             data: error?.message,
           },
           500
@@ -1758,6 +1710,415 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to update specialty color",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  // ==================== TERRITORIES ====================
+  {
+    path: "/territories",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const territories = await getTerritoriesRepository().getAllTerritories();
+        console.log("territories", territories);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Territories fetched successfully",
+          data: territories,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch territories",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/territories/:id",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const territory = await getTerritoriesRepository().getTerritoryById(
+          req.params.id
+        );
+        if (!territory) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Territory not found",
+              data: null,
+            },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Territory fetched successfully",
+          data: territory,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch territory",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/territories",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const data = insertTerritorySchema.parse(req.body);
+        // Check if territory with same name already exists
+        const existing = await getTerritoriesRepository().getTerritoryByName(
+          data.name
+        );
+        if (existing) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Territory with this name already exists",
+              data: null,
+            },
+            409
+          );
+        }
+        const territory = await getTerritoriesRepository().createTerritory(data);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Territory created successfully",
+            data: territory,
+          },
+          201
+        );
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid territory data",
+            data: error?.message,
+          },
+          400
+        );
+      }
+    },
+  },
+
+  {
+    path: "/territories/:id",
+    method: "PATCH",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const data = insertTerritorySchema.partial().parse(req.body);
+        // If name is being updated, check for duplicates
+        if (data.name) {
+          const existing = await getTerritoriesRepository().getTerritoryByName(
+            data.name
+          );
+          if (existing && existing.id !== req.params.id) {
+            return routeResponse(
+              res,
+              {
+                has_error: true,
+                message: "Territory with this name already exists",
+                data: null,
+              },
+              409
+            );
+          }
+        }
+        const territory = await getTerritoriesRepository().updateTerritory(
+          req.params.id,
+          data
+        );
+        if (!territory) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Territory not found",
+              data: null,
+            },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Territory updated successfully",
+          data: territory,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update territory",
+            data: error?.message,
+          },
+          400
+        );
+      }
+    },
+  },
+
+  {
+    path: "/territories/:id",
+    method: "DELETE",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const deleted = await getTerritoriesRepository().deleteTerritory(
+          req.params.id
+        );
+        if (!deleted) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Territory not found",
+              data: null,
+            },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Territory deleted successfully",
+          data: null,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete territory",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  // ==================== PROFESSIONS ====================
+  {
+    path: "/professions",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const professions = await getProfessionsRepository().getAllProfessions();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Professions fetched successfully",
+          data: professions,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch professions",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/professions/:id",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const profession = await getProfessionsRepository().getProfessionById(
+          req.params.id
+        );
+        if (!profession) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Profession not found",
+              data: null,
+            },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Profession fetched successfully",
+          data: profession,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch profession",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/professions",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const data = insertProfessionSchema.parse(req.body);
+        // Check if profession with same name already exists
+        const existing = await getProfessionsRepository().getProfessionByName(
+          data.name
+        );
+        if (existing) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Profession with this name already exists",
+              data: null,
+            },
+            409
+          );
+        }
+        const profession = await getProfessionsRepository().createProfession(data);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Profession created successfully",
+            data: profession,
+          },
+          201
+        );
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid profession data",
+            data: error?.message,
+          },
+          400
+        );
+      }
+    },
+  },
+
+  {
+    path: "/professions/:id",
+    method: "PATCH",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const data = insertProfessionSchema.partial().parse(req.body);
+        // If name is being updated, check for duplicates
+        if (data.name) {
+          const existing = await getProfessionsRepository().getProfessionByName(
+            data.name
+          );
+          if (existing && existing.id !== req.params.id) {
+            return routeResponse(
+              res,
+              {
+                has_error: true,
+                message: "Profession with this name already exists",
+                data: null,
+              },
+              409
+            );
+          }
+        }
+        const profession = await getProfessionsRepository().updateProfession(
+          req.params.id,
+          data
+        );
+        if (!profession) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Profession not found",
+              data: null,
+            },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Profession updated successfully",
+          data: profession,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update profession",
+            data: error?.message,
+          },
+          400
+        );
+      }
+    },
+  },
+
+  {
+    path: "/professions/:id",
+    method: "DELETE",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const deleted = await getProfessionsRepository().deleteProfession(
+          req.params.id
+        );
+        if (!deleted) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Profession not found",
+              data: null,
+            },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Profession deleted successfully",
+          data: null,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete profession",
             data: error?.message,
           },
           500
@@ -2234,8 +2595,7 @@ export const routesLinks: Array<RouteLinkType> = [
           } catch (err) {
             failed++;
             errors.push(
-              `Prospect ${prospect.id}: ${
-                err instanceof Error ? err.message : "Unknown error"
+              `Prospect ${prospect.id}: ${err instanceof Error ? err.message : "Unknown error"
               }`
             );
           }

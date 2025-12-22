@@ -9,6 +9,8 @@ export * from "./SpecialtyColorsRepository.js";
 export * from "./CallOutcomesRepository.js";
 export * from "./UserTerritoriesRepository.js";
 export * from "./UserProfessionsRepository.js";
+export * from "./TerritoriesRepository.js";
+export * from "./ProfessionsRepository.js";
 export * from "./IssuesRepository.js";
 
 
