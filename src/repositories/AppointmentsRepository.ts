@@ -46,37 +46,37 @@ export class AppointmentsRepository implements IAppointmentsRepository {
   }
 
   async listTodayAppointments(territory?: string): Promise<any[]> {
-    const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split('T')[0];
 
-    const query = this.appointmentRepo
-      .createQueryBuilder("appointment")
-      .leftJoinAndSelect("appointment.prospect", "prospect")
-      .leftJoinAndSelect("appointment.fieldRep", "fieldRep")
-      .where("appointment.scheduledDate = :today", { today })
-      .orderBy("appointment.scheduledTime", "ASC");
+  const query = this.appointmentRepo
+   .createQueryBuilder('appointment')
+   .leftJoinAndSelect('appointment.prospect', 'prospect')
+   .leftJoinAndSelect('appointment.fieldRep', 'fieldRep')
+   .where('appointment.scheduledDate = :today', { today })
+   .orderBy('appointment.scheduledTime', 'ASC');
 
-    if (territory) {
-      query.andWhere("fieldRep.territory = :territory", { territory });
-    }
-
-    const appointments = await query.getMany();
-
-    return appointments.map((app) => ({
-      id: app.id,
-      scheduledDate: app.scheduledDate,
-      scheduledTime: app.scheduledTime,
-      durationMinutes: app.durationMinutes,
-      status: app.status,
-      prospectId: app.prospectId,
-      prospectName: app.prospect?.businessName,
-      prospectPhone: app.prospect?.phoneNumber,
-      prospectAddress: app.prospect?.addressStreet,
-      prospectCity: app.prospect?.addressCity,
-      fieldRepId: app.fieldRepId,
-      fieldRepName: app.fieldRep?.name,
-      territory: app.fieldRep?.territory,
-    }));
+  if (territory) {
+   query.andWhere('fieldRep.territory = :territory', { territory });
   }
+
+  const appointments = await query.getMany();
+
+  return appointments.map((app) => ({
+   id: app.id,
+   scheduledDate: app.scheduledDate,
+   scheduledTime: app.scheduledTime,
+   durationMinutes: app.durationMinutes,
+   status: app.status,
+   prospectId: app.prospectId,
+   prospectName: app.prospect?.businessName,
+   prospectPhone: app.prospect?.phoneNumber,
+   prospectAddress: app.prospect?.addressStreet,
+   prospectCity: app.prospect?.addressCity,
+   fieldRepId: app.fieldRepId,
+   fieldRepName: app.fieldRep?.name,
+   territory: app.fieldRep?.territory,
+  }));
+ }
 
   async createAppointment(
     appointment: Partial<Appointment>

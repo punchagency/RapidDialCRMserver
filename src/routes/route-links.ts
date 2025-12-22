@@ -11,6 +11,7 @@ import {
   getSpecialtyColorsRepository,
   getCallOutcomesRepository,
   getFieldRepsRepository,
+  
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
 import { getLiveKitService } from "../services/LiveKitService.js";
@@ -132,7 +133,7 @@ const getUserFromToken = async (req: Request): Promise<User | null> => {
   if (!token) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayloadType;
-    return await getStorage().getUser(decoded.userId);
+    return await getUsersRepository().getUser(decoded.userId);
   } catch (err) {
     return null;
   }
@@ -186,7 +187,7 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const input = registerSchema.parse(req.body);
-        const existing = await getStorage().getUserByEmail(input.email);
+        const existing = await getUsersRepository().getUserByEmail(input.email);
         if (existing) {
           return routeResponse(
             res,
@@ -196,7 +197,7 @@ export const routesLinks: Array<RouteLinkType> = [
         }
 
         const passwordHash = await bcrypt.hash(input.password, 10);
-        const user = await getStorage().createUser({
+        const user = await getUsersRepository().createUser({
           email: input.email,
           passwordHash,
           name: input.name,
@@ -241,7 +242,7 @@ export const routesLinks: Array<RouteLinkType> = [
       const schema = z.object({ email: z.string().email() });
       try {
         const { email } = schema.parse(req.body);
-        const user = await getStorage().getUserByEmail(email);
+        const user = await getUsersRepository().getUserByEmail(email);
         if (!user) {
           return routeResponse(res, { has_error: false, message: 'If the email exists, a reset link was sent.' });
         }
@@ -267,12 +268,12 @@ export const routesLinks: Array<RouteLinkType> = [
         if (!decoded) {
           return routeResponse(res, { has_error: true, message: 'Invalid or expired token', data: null }, 400);
         }
-        const user = await getStorage().getUser(decoded.userId);
+        const user = await getUsersRepository().getUser(decoded.userId);
         if (!user) {
           return routeResponse(res, { has_error: true, message: 'User not found', data: null }, 404);
         }
         const passwordHash = await bcrypt.hash(password, 10);
-        await getStorage().updateUser(user.id, { passwordHash, inviteStatus: InviteStatus.ACCEPTED });
+        await getUsersRepository().updateUser(user.id, { passwordHash, inviteStatus: InviteStatus.ACCEPTED });
         return routeResponse(res, { has_error: false, message: 'Password updated successfully' });
       } catch (error: any) {
         const message = error instanceof z.ZodError ? 'Invalid request data' : 'Failed to reset password';
@@ -292,7 +293,7 @@ export const routesLinks: Array<RouteLinkType> = [
           return routeResponse(res, { has_error: true, message: 'Google account missing email', data: null }, 400);
         }
 
-        let user = await getStorage().getUserByEmail(profile.email);
+        let user = await getUsersRepository().getUserByEmail(profile.email);
         if (!user) {
           throw new Error('Forbidden Login with Google. Reachout to admin for invitation.');
         }
@@ -315,7 +316,7 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const input = loginSchema.parse(req.body);
-        const user = await getStorage().getUserByEmail(input.email);
+        const user = await getUsersRepository().getUserByEmail(input.email);
         if (!user) {
           return routeResponse(res, { has_error: true, message: 'Invalid credentials', data: null }, 401);
         }
@@ -809,7 +810,7 @@ export const routesLinks: Array<RouteLinkType> = [
       try {
         const territory = req.query.territory as string | undefined;
         console.log('territory', territory);
-        const appointments = await getStorage().listTodayAppointments(territory);
+        const appointments = await getAppointmentsRepository().listTodayAppointments(territory);
         return routeResponse(res, { has_error: false, message: "Today's appointments fetched successfully", data: appointments });
       } catch (error: any) {
         return routeResponse(
@@ -1217,7 +1218,7 @@ export const routesLinks: Array<RouteLinkType> = [
         if (!passwordHash) {
           return routeResponse(res, { has_error: true, message: 'Password is required', data: null }, 400);
         }
-        const user = await getStorage().createUser({
+        const user = await getUsersRepository().createUser({
           email: input.email,
           name: input.name,
           role: input.role,
@@ -1325,7 +1326,7 @@ export const routesLinks: Array<RouteLinkType> = [
           updateData.passwordHash = await bcrypt.hash(req.body.password, 10);
           delete updateData.password;
         }
-        const user = await getStorage().updateUser(req.params.id, updateData);
+        const user = await getUsersRepository().updateUser(req.params.id, updateData);
         if (!user) {
           return routeResponse(
             res,
