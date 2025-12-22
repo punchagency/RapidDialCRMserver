@@ -17,6 +17,11 @@ import { getLiveKitService } from "../services/LiveKitService.js";
 import { getGeocodingService } from "../services/GeocodingService.js";
 import { getOptimizationService } from "../services/OptimizationService.js";
 import { getLinearService } from "../services/LinearService.js";
+import { getEmailService } from '../services/EmailService.js';
+import { InviteStatus, User } from '../entities/User.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import {
   insertProspectSchema,
   insertFieldRepSchema,
@@ -41,6 +46,11 @@ type RouteLinkType = {
   handler: (req: Request, res: Response) => Promise<any>;
 };
 
+
+
+const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
 const routeResponse = (
   res: Response,
   objectValue: ObjectValueType,
@@ -55,6 +65,7 @@ const getLiveKit = () => getLiveKitService();
 const getGeocoding = () => getGeocodingService();
 const getOptimization = () => getOptimizationService();
 const getLinear = () => getLinearService();
+const getEmail = () => getEmailService();
 
 // Services will be initialized lazily when needed
 // Don't initialize storage here as database may not be ready yet
@@ -65,7 +76,294 @@ let colorsCacheTime = 0;
 let cachedOutcomes: any[] | null = null;
 let outcomesCacheTime = 0;
 
+const registerSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  role: z
+    .enum(['admin', 'manager', 'inside_sales_rep', 'field_sales_rep', 'data_loader'])
+    .default('data_loader'),
+  territory: z.string().max(50).optional(),
+});
+
+const createUserSchema = insertUserSchema.extend({
+  password: z.string().min(6).optional(),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+type JwtPayloadType = {
+  userId: string;
+  role: string;
+};
+
+const sanitizeUser = (user: User) => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  role: user.role,
+  territory: user.territory || null,
+  isActive: user.isActive,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+});
+
+const signToken = (user: User) => {
+  const payload: JwtPayloadType = {
+    userId: user.id,
+    role: user.role,
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: (JWT_EXPIRES_IN as any) });
+};
+
+const getBearerToken = (req: Request): string | null => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return null;
+  const [scheme, token] = authHeader.split(' ');
+  if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
+  return token;
+};
+
+const getUserFromToken = async (req: Request): Promise<User | null> => {
+  const token = getBearerToken(req);
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayloadType;
+    return await getStorage().getUser(decoded.userId);
+  } catch (err) {
+    return null;
+  }
+};
+
+const buildResetToken = (user: User) => {
+  const payload = { userId: user.id, type: 'password_reset' as const };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+};
+
+const verifyResetToken = (token: string): { userId: string } | null => {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded?.type !== 'password_reset') return null;
+    return { userId: decoded.userId };
+  } catch {
+    return null;
+  }
+};
+
+const buildResetLink = (token: string) => {
+  const baseClient = process.env.CLIENT_URL || 'http://localhost:5173';
+  return `${baseClient.replace(/\/$/, '')}/password-reset?token=${token}`;
+};
+
+const verifyGoogleToken = async (idToken: string) => {
+  // @ts-ignore
+  const fetchImpl = (global as any).fetch ?? (await import('node-fetch')).default;
+  const response = await fetchImpl(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+  if (!response.ok) {
+    throw new Error('Invalid Google token');
+  }
+  const data = await response.json();
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+
+  if (clientId && data.aud !== clientId) {
+    throw new Error('Google token audience mismatch');
+  }
+  return {
+    email: data.email as string,
+    name: (data.name as string) || (data.email as string),
+    emailVerified: data.email_verified === 'true' || data.email_verified === true,
+  };
+};
+
 export const routesLinks: Array<RouteLinkType> = [
+  // ==================== AUTH ====================
+  {
+    path: '/auth/register',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const input = registerSchema.parse(req.body);
+        const existing = await getStorage().getUserByEmail(input.email);
+        if (existing) {
+          return routeResponse(
+            res,
+            { has_error: true, message: 'User already exists', data: null },
+            409
+          );
+        }
+
+        const passwordHash = await bcrypt.hash(input.password, 10);
+        const user = await getStorage().createUser({
+          email: input.email,
+          passwordHash,
+          name: input.name,
+          role: input.role,
+          territory: input.territory,
+          isActive: true,
+        });
+
+        const token = signToken(user);
+
+        // Send invite email with reset link
+        try {
+          const resetToken = buildResetToken(user);
+          const link = buildResetLink(resetToken);
+          console.log("link", link) //TODO: delete
+          await getEmail().sendInviteEmail(user.email, user.name, link);
+        } catch (mailErr) {
+          console.warn('Failed to send invite email', mailErr);
+        }
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: 'User registered successfully',
+            data: {
+              token,
+              user: sanitizeUser(user),
+            },
+          },
+          201
+        );
+      } catch (error: any) {
+        const message = error instanceof z.ZodError ? 'Invalid registration data' : 'Registration failed';
+        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+      }
+    },
+  },
+  {
+    path: '/auth/password-reset/request',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      const schema = z.object({ email: z.string().email() });
+      try {
+        const { email } = schema.parse(req.body);
+        const user = await getStorage().getUserByEmail(email);
+        if (!user) {
+          return routeResponse(res, { has_error: false, message: 'If the email exists, a reset link was sent.' });
+        }
+        const resetToken = buildResetToken(user);
+        const link = buildResetLink(resetToken);
+        console.log("link", link) //TODO: delete
+        await getEmail().sendPasswordResetEmail(user.email, user.name, link);
+        return routeResponse(res, { has_error: false, message: 'Reset link sent.' });
+      } catch (error: any) {
+        const message = error instanceof z.ZodError ? 'Invalid request data' : 'Failed to process request';
+        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+      }
+    },
+  },
+  {
+    path: '/auth/password-reset/confirm',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      const schema = z.object({ token: z.string().min(10), password: z.string().min(6) });
+      try {
+        const { token, password } = schema.parse(req.body);
+        const decoded = verifyResetToken(token);
+        if (!decoded) {
+          return routeResponse(res, { has_error: true, message: 'Invalid or expired token', data: null }, 400);
+        }
+        const user = await getStorage().getUser(decoded.userId);
+        if (!user) {
+          return routeResponse(res, { has_error: true, message: 'User not found', data: null }, 404);
+        }
+        const passwordHash = await bcrypt.hash(password, 10);
+        await getStorage().updateUser(user.id, { passwordHash, inviteStatus: InviteStatus.ACCEPTED });
+        return routeResponse(res, { has_error: false, message: 'Password updated successfully' });
+      } catch (error: any) {
+        const message = error instanceof z.ZodError ? 'Invalid request data' : 'Failed to reset password';
+        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+      }
+    },
+  },
+  {
+    path: '/auth/google',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      const schema = z.object({ idToken: z.string().min(10) });
+      try {
+        const { idToken } = schema.parse(req.body);
+        const profile = await verifyGoogleToken(idToken);
+        if (!profile.email) {
+          return routeResponse(res, { has_error: true, message: 'Google account missing email', data: null }, 400);
+        }
+
+        let user = await getStorage().getUserByEmail(profile.email);
+        if (!user) {
+          throw new Error('Forbidden Login with Google. Reachout to admin for invitation.');
+        }
+
+        const token = signToken(user);
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Google login successful',
+          data: { token, user: sanitizeUser(user) },
+        });
+      } catch (error: any) {
+        const message = error instanceof z.ZodError ? 'Invalid Google login data' : error?.message || 'Google login failed';
+        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+      }
+    },
+  },
+  {
+    path: '/auth/login',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const input = loginSchema.parse(req.body);
+        const user = await getStorage().getUserByEmail(input.email);
+        if (!user) {
+          return routeResponse(res, { has_error: true, message: 'Invalid credentials', data: null }, 401);
+        }
+
+        if (!user.isActive) {
+          return routeResponse(res, { has_error: true, message: 'Account is inactive', data: null }, 403);
+        }
+
+        const isValid = await bcrypt.compare(input.password, user.passwordHash);
+        if (!isValid) {
+          return routeResponse(res, { has_error: true, message: 'Invalid credentials', data: null }, 401);
+        }
+
+        const token = signToken(user);
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Login successful',
+          data: {
+            token,
+            user: sanitizeUser(user),
+          },
+        });
+      } catch (error: any) {
+        const message = error instanceof z.ZodError ? 'Invalid login data' : 'Login failed';
+        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+      }
+    },
+  },
+  {
+    path: '/auth/me',
+    method: 'GET',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const user = await getUserFromToken(req);
+        if (!user) {
+          return routeResponse(res, { has_error: true, message: 'Unauthorized', data: null }, 401);
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: 'User profile fetched',
+          data: sanitizeUser(user),
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to fetch user', data: error?.message }, 500);
+      }
+    },
+  },
+
   // ==================== HEALTH CHECK ====================
   // Note: Health check is handled in Server.ts, but keeping for consistency
   {
@@ -510,13 +808,9 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const territory = req.query.territory as string | undefined;
-        const appointments =
-          await getAppointmentsRepository().listTodayAppointments(territory);
-        return routeResponse(res, {
-          has_error: false,
-          message: "Today's appointments fetched successfully",
-          data: appointments,
-        });
+        console.log('territory', territory);
+        const appointments = await getStorage().listTodayAppointments(territory);
+        return routeResponse(res, { has_error: false, message: "Today's appointments fetched successfully", data: appointments });
       } catch (error: any) {
         return routeResponse(
           res,
@@ -914,17 +1208,33 @@ export const routesLinks: Array<RouteLinkType> = [
     method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const data = insertUserSchema.parse(req.body);
-        const user = await getUsersRepository().createUser(data);
-        return routeResponse(
-          res,
-          {
-            has_error: false,
-            message: "User created successfully",
-            data: user,
-          },
-          201
-        );
+        const input = createUserSchema.parse(req.body);
+        const passwordHash = input.passwordHash
+          ? input.passwordHash
+          : input.password
+            ? await bcrypt.hash(input.password, 10)
+            : null;
+        if (!passwordHash) {
+          return routeResponse(res, { has_error: true, message: 'Password is required', data: null }, 400);
+        }
+        const user = await getStorage().createUser({
+          email: input.email,
+          name: input.name,
+          role: input.role,
+          territory: input.territory,
+          isActive: input.isActive ?? true,
+          passwordHash,
+        });
+
+        try {
+          const resetToken = buildResetToken(user);
+          const link = buildResetLink(resetToken);
+          await getEmail().sendInviteEmail(user.email, user.name, link);
+        } catch (mailErr) {
+          console.warn('Failed to send invite email', mailErr);
+        }
+
+        return routeResponse(res, { has_error: false, message: 'User created successfully', data: user }, 201);
       } catch (error: any) {
         return routeResponse(
           res,
@@ -1010,10 +1320,12 @@ export const routesLinks: Array<RouteLinkType> = [
     method: "PATCH",
     handler: async (req: Request, res: Response) => {
       try {
-        const user = await getUsersRepository().updateUser(
-          req.params.id,
-          req.body
-        );
+        const updateData: any = { ...req.body };
+        if (req.body?.password) {
+          updateData.passwordHash = await bcrypt.hash(req.body.password, 10);
+          delete updateData.password;
+        }
+        const user = await getStorage().updateUser(req.params.id, updateData);
         if (!user) {
           return routeResponse(
             res,

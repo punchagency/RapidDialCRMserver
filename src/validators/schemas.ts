@@ -17,6 +17,7 @@ export const insertProspectSchema = z.object({
   addressLng: z.string().optional(),
   specialty: z.string().max(50).min(1),
   territory: z.string().max(20).min(1),
+  officeEmail: z.string().max(255).email().optional(),
   // Accepts ISO date strings or Date objects
   lastContactDate: z.coerce.date().optional(),
   lastCallOutcome: z.string().max(50).optional(),
