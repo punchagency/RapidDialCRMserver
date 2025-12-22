@@ -42,6 +42,9 @@ export class Prospect {
   @Column({ type: 'varchar', length: 20 })
   territory!: string;
 
+  @Column({ name: 'office_email', type: 'varchar', length: 255, nullable: true })
+  officeEmail?: string;
+
   @Column({ name: 'last_contact_date', type: 'timestamp', nullable: true })
   lastContactDate?: Date;
 

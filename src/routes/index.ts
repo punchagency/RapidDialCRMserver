@@ -29,7 +29,9 @@ export class RoutesManager {
    */
   private setupRoutes(): void {
     // API version prefix
-    this.router.use('/v1', this.fissRoutes());
+    this.router.use('/v1', this.fuseRoutes());
+    // Unversioned fallback for legacy routes (/api/*)
+    this.router.use('/', this.fuseRoutes());
 
     // Root API endpoint
     this.router.get('/', (req: Request, res: Response) => {
@@ -47,7 +49,7 @@ export class RoutesManager {
     });
   }
 
-  private fissRoutes() {
+  private fuseRoutes() {
     const routerArchor = express.Router();
 
     routesLinks.forEach(({ method, handler, path }) => {
