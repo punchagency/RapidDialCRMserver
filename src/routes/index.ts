@@ -1,6 +1,6 @@
-import express, { Router, Request, Response } from 'express';
-import { DatabaseManager } from '../config/database.js';
-import { routesLinks } from './route-links.js';
+import express, { Router, Request, Response } from "express";
+import { DatabaseManager } from "../config/database.js";
+import { routesLinks } from "./route-links.js";
 
 /**
  * Routes Manager Class
@@ -29,20 +29,22 @@ export class RoutesManager {
    */
   private setupRoutes(): void {
     // API version prefix
-    this.router.use('/v1', this.fissRoutes());
+    this.router.use("/v1", this.fissRoutes());
 
     // Root API endpoint
-    this.router.get('/', (req: Request, res: Response) => {
+    this.router.get("/", (req: Request, res: Response) => {
       res.json({
-        message: 'CRM Backend API',
-        version: '1.0.0',
-        status: 'active',
-        database: this.databaseManager?.isConnected() ? 'connected' : 'disconnected',
+        message: "CRM Backend API",
+        version: "1.0.0",
+        status: "active",
+        database: this.databaseManager?.isConnected()
+          ? "connected"
+          : "disconnected",
         endpoints: {
-          health: '/health',
-          api: '/api',
-          v1: '/api/v1'
-        }
+          health: "/health",
+          api: "/api",
+          v1: "/api/v1",
+        },
       });
     });
   }
@@ -51,7 +53,12 @@ export class RoutesManager {
     const routerArchor = express.Router();
 
     routesLinks.forEach(({ method, handler, path }) => {
-      const methodInLowerCase = method.toLowerCase() as 'get' | 'post' | 'put' | 'delete' | 'patch';
+      const methodInLowerCase = method.toLowerCase() as
+        | "get"
+        | "post"
+        | "put"
+        | "delete"
+        | "patch";
 
       // @ts-ignore
       routerArchor[methodInLowerCase](path, handler);
@@ -68,6 +75,7 @@ export class RoutesManager {
     return this.databaseManager;
   }
 }
+//
 
 /**
  * Create and configure routes
@@ -87,11 +95,15 @@ export function getV1Routes(): Router {
   const router = express.Router();
 
   routesLinks.forEach(({ method, handler, path }) => {
-    const methodInLowerCase = method.toLowerCase() as 'get' | 'post' | 'put' | 'delete' | 'patch';
+    const methodInLowerCase = method.toLowerCase() as
+      | "get"
+      | "post"
+      | "put"
+      | "delete"
+      | "patch";
     // @ts-ignore
     router[methodInLowerCase](path, handler);
   });
 
   return router;
 }
-
