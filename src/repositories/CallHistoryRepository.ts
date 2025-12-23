@@ -26,7 +26,10 @@ export interface ICallHistoryRepository {
     outcome?: string;
   }): Promise<CallHistory>;
 
-  getCallHistory(limit: number, offset: number): Promise<CallHistory[]>;
+  getAllCallHistory(
+    limit: number,
+    offset: number
+  ): Promise<[CallHistory[], number]>;
   getCallByCallSid(callSid: string): Promise<CallHistory | null>;
 }
 
@@ -127,16 +130,19 @@ export class CallHistoryRepository implements ICallHistoryRepository {
     return await this.callHistoryRepo.save(newRecord);
   }
 
-  async getAllCallHistory(): Promise<CallHistory[]> {
+  async getCallHistory(): Promise<CallHistory[]> {
     return await this.callHistoryRepo.find({
       relations: ["prospect"],
       order: { attemptDate: "DESC" },
     });
   }
 
-  async getCallHistory(limit: number, offset: number): Promise<CallHistory[]> {
-    return await this.callHistoryRepo.find({
-      relations: ["prospect"],
+  async getAllCallHistory(
+    limit: number,
+    offset: number
+  ): Promise<[CallHistory[], number]> {
+    return await this.callHistoryRepo.findAndCount({
+      relations: ["prospect", "caller"],
       order: { attemptDate: "DESC" },
       take: limit || 100,
       skip: offset || 0,

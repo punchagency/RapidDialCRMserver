@@ -507,7 +507,7 @@ export const routesLinks: Array<RouteLinkType> = [
             await getProspectsRepository().listProspectsByTerritory(territory);
         } else {
           [prospects, total] = await getProspectsRepository().listAllProspects(
-            Boolean(called) ,
+            Boolean(called),
             Number(limit),
             Number(offset)
           );
@@ -1809,10 +1809,11 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const { limit, offset } = req.query;
-        const callHistory = await getCallHistoryRepository().getCallHistory(
-          Number(limit),
-          Number(offset)
-        );
+        const [callHistory, total] =
+          await getCallHistoryRepository().getAllCallHistory(
+            Number(limit),
+            Number(offset)
+          );
         if (!callHistory) {
           return routeResponse(
             res,
@@ -1828,6 +1829,7 @@ export const routesLinks: Array<RouteLinkType> = [
           has_error: false,
           message: "Call history fetched successfully",
           data: callHistory,
+          total,
         });
       } catch (error: any) {
         return routeResponse(
