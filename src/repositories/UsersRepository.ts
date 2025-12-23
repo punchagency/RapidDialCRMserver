@@ -2,6 +2,14 @@ import { DataSource, Repository } from "typeorm";
 import { User } from "../entities/index.js";
 import { getDatabaseManager } from "../config/database.js";
 
+export enum UserRole {
+  ADMIN = 'admin',
+  MANAGER = 'manager',
+  INSIDE_SALES_REP = 'inside_sales_rep',
+  FIELD_SALES_REP = 'field_sales_rep',
+  DATA_LOADER = 'data_loader',
+}
+
 /**
  * Users Repository Interface
  */
@@ -12,6 +20,7 @@ export interface IUsersRepository {
   createUser(user: Partial<User>): Promise<User>;
   updateUser(id: string, user: Partial<User>): Promise<User | null>;
   deleteUser(id: string): Promise<void>;
+  listInsideSalesReps(): Promise<User[]>;
 }
 
 /**
@@ -50,6 +59,10 @@ export class UsersRepository implements IUsersRepository {
 
   async deleteUser(id: string): Promise<void> {
     await this.userRepo.delete(id);
+  }
+
+  async listInsideSalesReps(): Promise<User[]> {
+    return await this.userRepo.find({ where: { role: UserRole.INSIDE_SALES_REP } });
   }
 }
 

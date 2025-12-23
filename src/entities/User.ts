@@ -59,5 +59,8 @@ export class User {
 
   @OneToMany('UserProfession', 'user')
   userProfessions?: any[];
+
+  @OneToMany('Prospect', 'assignedInsideSalesRep')
+    prospects?: any[];
 }
 
