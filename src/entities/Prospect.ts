@@ -5,7 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from './User.js';
 
 @Entity('prospects')
 export class Prospect {
@@ -42,6 +45,9 @@ export class Prospect {
   @Column({ type: 'varchar', length: 20 })
   territory!: string;
 
+  @Column({ name: 'office_email', type: 'varchar', length: 255, nullable: true })
+  officeEmail?: string;
+
   @Column({ name: 'last_contact_date', type: 'timestamp', nullable: true })
   lastContactDate?: Date;
 
@@ -62,6 +68,9 @@ export class Prospect {
   @Column({ name: 'priority_score', type: 'int', nullable: true })
   priorityScore?: number;
 
+  @Column({ name: 'assigned_inside_sales_rep_id', type: 'varchar', nullable: true })
+  assignedInsideSalesRepId?: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
@@ -77,5 +86,9 @@ export class Prospect {
 
   @OneToMany('Appointment', 'prospect')
   appointments?: any[];
+
+  @ManyToOne('User', 'prospects')
+  @JoinColumn({ name: 'assigned_inside_sales_rep_id' })
+  assignedInsideSalesRep?: User;
 }
 

@@ -17,6 +17,7 @@ export const insertProspectSchema = z.object({
   addressLng: z.string().optional(),
   specialty: z.string().max(50).min(1),
   territory: z.string().max(20).min(1),
+  officeEmail: z.string().max(255).email().optional(),
   // Accepts ISO date strings or Date objects
   lastContactDate: z.coerce.date().optional(),
   lastCallOutcome: z.string().max(50).optional(),
@@ -67,6 +68,7 @@ export const insertStakeholderSchema = z.object({
   email: z.string().max(255).email().optional(),
   phoneNumber: z.string().max(20).optional(),
   isPrimary: z.boolean().default(false),
+  contactType: z.enum(['client-admin', 'provider']).optional(),
 });
 
 // User schemas
@@ -109,5 +111,19 @@ export const insertIssueSchema = z.object({
   linearIssueUrl: z.string().max(500).optional(),
   labels: z.array(z.string()).optional(),
   createdBy: z.string().max(100).optional(),
+});
+
+// Territory schemas
+export const insertTerritorySchema = z.object({
+  name: z.string().min(1).max(50),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
+});
+
+// Profession schemas
+export const insertProfessionSchema = z.object({
+  name: z.string().min(1).max(50),
+  description: z.string().optional(),
+  isActive: z.boolean().default(true),
 });
 

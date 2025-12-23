@@ -31,6 +31,9 @@ export class Stakeholder {
   @Column({ name: 'is_primary', type: 'boolean', default: false })
   isPrimary!: boolean;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  contactType?: "client-admin" | "provider";
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

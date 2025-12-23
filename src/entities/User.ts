@@ -14,6 +14,13 @@ export type UserRole =
   | 'field_sales_rep'
   | 'data_loader';
 
+export enum InviteStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  REJECTED = 'rejected',
+  CREATED = 'created',
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -37,6 +44,9 @@ export class User {
   @Column({ name: 'is_active', type: 'boolean', default: true })
   isActive!: boolean;
 
+  @Column({ name: 'invite_status', type: 'enum', enum: InviteStatus, default: InviteStatus.PENDING })
+  inviteStatus!: InviteStatus;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
@@ -49,5 +59,8 @@ export class User {
 
   @OneToMany('UserProfession', 'user')
   userProfessions?: any[];
+
+  @OneToMany('Prospect', 'assignedInsideSalesRep')
+    prospects?: any[];
 }
 

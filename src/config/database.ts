@@ -1,5 +1,5 @@
-import { DataSource, DataSourceOptions } from 'typeorm';
-import dotenv from 'dotenv';
+import { DataSource, DataSourceOptions } from "typeorm";
+import dotenv from "dotenv";
 import {
   Prospect,
   User,
@@ -9,13 +9,15 @@ import {
   Stakeholder,
   UserTerritory,
   UserProfession,
+  Territory,
+  Profession,
   SpecialtyColor,
   CallOutcome,
   Issue,
-} from '../entities/index.js';
+} from "../entities/index.js";
 
 // Load environment variables
-dotenv.config({ path: ['.env.development', '.env.production'] });
+dotenv.config({ path: [".env.development", ".env.production"] });
 
 /**
  * Database Manager Class
@@ -29,10 +31,10 @@ export class DatabaseManager {
    * @returns {DataSource} TypeORM DataSource instance
    */
   createDataSource(): DataSource {
-    const dbType: string = process.env.DB_TYPE || 'mysql';
+    const dbType: string = process.env.DB_TYPE || "mysql";
 
     // Determine file extension based on environment
-    const fileExtension = process.env.NODE_ENV === 'production' ? 'js' : 'ts';
+    const fileExtension = process.env.NODE_ENV === "production" ? "js" : "ts";
 
     // Import entities directly as classes (avoids file loading issues)
     const entities = [
@@ -44,13 +46,15 @@ export class DatabaseManager {
       Stakeholder,
       UserTerritory,
       UserProfession,
+      Territory,
+      Profession,
       SpecialtyColor,
       CallOutcome,
       Issue,
     ];
 
     const commonConfig: Partial<DataSourceOptions> = {
-      synchronize: process.env.DB_SYNCHRONIZE === 'true',
+      synchronize: process.env.DB_SYNCHRONIZE === "true",
       logging: false, // logging: process.env.NODE_ENV !== 'production',
       entities: process.env.DB_ENTITIES_PATH
         ? [process.env.DB_ENTITIES_PATH]
@@ -66,37 +70,37 @@ export class DatabaseManager {
     let dataSourceConfig: DataSourceOptions;
 
     switch (dbType.toLowerCase()) {
-      case 'postgres':
-      case 'postgresql':
+      case "postgres":
+      case "postgresql":
         dataSourceConfig = {
-          type: 'postgres',
-          host: process.env.DB_HOST || 'localhost',
-          port: parseInt(process.env.DB_PORT || '5432', 10),
-          username: process.env.DB_USERNAME || 'postgres',
-          password: process.env.DB_PASSWORD || 'postgres',
-          database: process.env.DB_NAME || 'crm_db',
-          ...commonConfig
+          type: "postgres",
+          host: process.env.DB_HOST || "localhost",
+          port: parseInt(process.env.DB_PORT || "5432", 10),
+          username: process.env.DB_USERNAME || "postgres",
+          password: process.env.DB_PASSWORD || "postgres",
+          database: process.env.DB_NAME || "crm_db",
+          ...commonConfig,
         } as DataSourceOptions;
         break;
 
-      case 'mysql':
-      case 'mariadb':
+      case "mysql":
+      case "mariadb":
         dataSourceConfig = {
-          type: 'mysql',
-          host: process.env.DB_HOST || 'localhost',
-          port: parseInt(process.env.DB_PORT || '3306', 10),
-          username: process.env.DB_USERNAME || 'root',
-          password: process.env.DB_PASSWORD || 'root',
-          database: process.env.DB_NAME || 'recrowdly',
-          ...commonConfig
+          type: "mysql",
+          host: process.env.DB_HOST || "localhost",
+          port: parseInt(process.env.DB_PORT || "3306", 10),
+          username: process.env.DB_USERNAME || "root",
+          password: process.env.DB_PASSWORD || "",
+          database: process.env.DB_NAME || "recrowdly",
+          ...commonConfig,
         } as DataSourceOptions;
         break;
 
-      case 'sqlite':
+      case "sqlite":
         dataSourceConfig = {
-          type: 'sqlite',
-          database: process.env.DB_NAME || 'database.sqlite',
-          ...commonConfig
+          type: "sqlite",
+          database: process.env.DB_NAME || "database.sqlite",
+          ...commonConfig,
         } as DataSourceOptions;
         break;
 
@@ -118,13 +122,14 @@ export class DatabaseManager {
 
       if (!this.dataSource.isInitialized) {
         await this.dataSource.initialize();
-        console.log('✅ Database connection established successfully');
-        console.log(`📊 Database: ${process.env.DB_NAME || 'crm_db'}`);
-        console.log(`🔌 Type: ${process.env.DB_TYPE || 'postgres'}`);
+        console.log("✅ Database connection established successfully");
+        console.log(`📊 Database: ${process.env.DB_NAME || "crm_db"}`);
+        console.log(`🔌 Type: ${process.env.DB_TYPE || "postgres"}`);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('❌ Database connection failed:', errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      console.error("❌ Database connection failed:", errorMessage);
       throw error;
     }
   }
@@ -135,7 +140,7 @@ export class DatabaseManager {
    */
   getDataSource(): DataSource {
     if (!this.dataSource || !this.dataSource.isInitialized) {
-      throw new Error('Database not initialized. Call initialize() first.');
+      throw new Error("Database not initialized. Call initialize() first.");
     }
     return this.dataSource;
   }
@@ -147,10 +152,10 @@ export class DatabaseManager {
     try {
       if (this.dataSource && this.dataSource.isInitialized) {
         await this.dataSource.destroy();
-        console.log('Database connection closed');
+        console.log("Database connection closed");
       }
     } catch (error) {
-      console.error('Error closing database connection:', error);
+      console.error("Error closing database connection:", error);
       throw error;
     }
   }
@@ -177,4 +182,3 @@ export function getDatabaseManager(): DatabaseManager {
   }
   return databaseManagerInstance;
 }
-
