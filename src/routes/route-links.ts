@@ -2490,12 +2490,25 @@ export const routesLinks: Array<RouteLinkType> = [
         const existingPhones = new Set(
           existingProspects.map((p) => p.phoneNumber)
         );
-        const fieldReps = await getUsersRepository().listInsideSalesReps();
+        const insideSalesReps = await getUsersRepository().listInsideSalesReps();
 
         const added: any[] = [];
         const skipped: any[] = [];
 
-        await roundRobin(fieldReps, contacts, async (prospectContact, fieldRep) => {
+        if (insideSalesReps.length === 0) {
+          return routeResponse(res, {
+            has_error: true,
+            message: "No inside sales reps found",
+            data: {
+              added: 0,
+              skipped: 0,
+              details: { added: [], skipped: [] },
+            }},
+            400
+          );
+        }
+
+        await roundRobin(insideSalesReps, contacts, async (prospectContact, insideSalesRep) => {
           const hasNoPhone = !prospectContact.phone;
           const isAlreadyInDatabase = existingPhones.has(prospectContact.phone);
 
@@ -2514,7 +2527,7 @@ export const routesLinks: Array<RouteLinkType> = [
                 territory,
                 addressLat: prospectContact.latitude?.toString(),
                 addressLng: prospectContact.longitude?.toString(),
-                assignedInsideSalesRepId: fieldRep.id,
+                assignedInsideSalesRepId: insideSalesRep.id,
               });
 
               added.push(prospect);
