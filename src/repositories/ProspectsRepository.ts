@@ -1,4 +1,4 @@
-import { DataSource, Repository, IsNull } from "typeorm";
+import { DataSource, Repository, IsNull, Not } from "typeorm";
 import { Prospect } from "../entities/index.js";
 import { getDatabaseManager } from "../config/database.js";
 
@@ -7,8 +7,12 @@ import { getDatabaseManager } from "../config/database.js";
  */
 export interface IProspectsRepository {
   getProspect(id: string): Promise<Prospect | null>;
-  listAllProspects(): Promise<Prospect[]>;
-  listProspectsByTerritory(territory: string): Promise<Prospect[]>;
+  listAllProspects(
+    called?: boolean,
+    limit?: number,
+    offset?: number
+  ): Promise<[Prospect[], number]>;
+  listProspectsByTerritory(territory: string): Promise<[Prospect[], number]>;
   createProspect(prospect: Partial<Prospect>): Promise<Prospect>;
   updateProspect(
     id: string,
@@ -34,12 +38,24 @@ export class ProspectsRepository implements IProspectsRepository {
     return await this.prospectRepo.findOne({ where: { id } });
   }
 
-  async listAllProspects(): Promise<Prospect[]> {
-    return await this.prospectRepo.find();
+  async listAllProspects(
+    called: boolean = false,
+    limit?: number,
+    offset?: number
+  ): Promise<[Prospect[], number]> {
+    const whereClause = called ? { lastCallOutcome: IsNull() } : {};
+    // console.log(called, limit, offset);
+    return await this.prospectRepo.findAndCount({
+      take: limit || 100,
+      skip: offset || 0,
+      where: whereClause,
+    });
   }
 
-  async listProspectsByTerritory(territory: string): Promise<Prospect[]> {
-    return await this.prospectRepo.find({ where: { territory } });
+  async listProspectsByTerritory(
+    territory: string
+  ): Promise<[Prospect[], number]> {
+    return await this.prospectRepo.findAndCount({ where: { territory } });
   }
 
   async createProspect(prospect: Partial<Prospect>): Promise<Prospect> {

@@ -26,7 +26,7 @@ export interface ICallHistoryRepository {
     outcome?: string;
   }): Promise<CallHistory>;
 
-  getCallHistory(): Promise<CallHistory[]>;
+  getCallHistory(limit: number, offset: number): Promise<CallHistory[]>;
   getCallByCallSid(callSid: string): Promise<CallHistory | null>;
 }
 
@@ -65,7 +65,7 @@ export class CallHistoryRepository implements ICallHistoryRepository {
     // Update the most recent call record with outcome
     await this.callHistoryRepo.update(
       { callSid: recentCall.callSid },
-      { outcome,notes }
+      { outcome, notes }
     );
 
     // Update prospect's lastContactDate
@@ -103,7 +103,7 @@ export class CallHistoryRepository implements ICallHistoryRepository {
       if (status !== undefined) existing.status = status;
       if (recordingUrl !== undefined) existing.recordingUrl = recordingUrl;
       if (duration !== undefined) existing.callDuration = duration;
-      if (prospectId !== undefined && !existing.prospectId) {
+      if (prospectId !== undefined) {
         existing.prospectId = prospectId;
       }
       if (outcome !== undefined) existing.outcome = outcome;
@@ -127,10 +127,19 @@ export class CallHistoryRepository implements ICallHistoryRepository {
     return await this.callHistoryRepo.save(newRecord);
   }
 
-  async getCallHistory(): Promise<CallHistory[]> {
+  async getAllCallHistory(): Promise<CallHistory[]> {
     return await this.callHistoryRepo.find({
       relations: ["prospect"],
       order: { attemptDate: "DESC" },
+    });
+  }
+
+  async getCallHistory(limit: number, offset: number): Promise<CallHistory[]> {
+    return await this.callHistoryRepo.find({
+      relations: ["prospect"],
+      order: { attemptDate: "DESC" },
+      take: limit || 100,
+      skip: offset || 0,
     });
   }
 

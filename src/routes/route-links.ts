@@ -11,18 +11,17 @@ import {
   getSpecialtyColorsRepository,
   getCallOutcomesRepository,
   getFieldRepsRepository,
-  
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
 import { getLiveKitService } from "../services/LiveKitService.js";
 import { getGeocodingService } from "../services/GeocodingService.js";
 import { getOptimizationService } from "../services/OptimizationService.js";
 import { getLinearService } from "../services/LinearService.js";
-import { getEmailService } from '../services/EmailService.js';
-import { InviteStatus, User } from '../entities/User.js';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
+import { getEmailService } from "../services/EmailService.js";
+import { InviteStatus, User } from "../entities/User.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { z } from "zod";
 import {
   insertProspectSchema,
   insertFieldRepSchema,
@@ -47,10 +46,8 @@ type RouteLinkType = {
   handler: (req: Request, res: Response) => Promise<any>;
 };
 
-
-
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 const routeResponse = (
   res: Response,
@@ -82,8 +79,14 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   role: z
-    .enum(['admin', 'manager', 'inside_sales_rep', 'field_sales_rep', 'data_loader'])
-    .default('data_loader'),
+    .enum([
+      "admin",
+      "manager",
+      "inside_sales_rep",
+      "field_sales_rep",
+      "data_loader",
+    ])
+    .default("data_loader"),
   territory: z.string().max(50).optional(),
 });
 
@@ -117,14 +120,14 @@ const signToken = (user: User) => {
     userId: user.id,
     role: user.role,
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: (JWT_EXPIRES_IN as any) });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as any });
 };
 
 const getBearerToken = (req: Request): string | null => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return null;
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
   return token;
 };
 
@@ -140,14 +143,14 @@ const getUserFromToken = async (req: Request): Promise<User | null> => {
 };
 
 const buildResetToken = (user: User) => {
-  const payload = { userId: user.id, type: 'password_reset' as const };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+  const payload = { userId: user.id, type: "password_reset" as const };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "1h" });
 };
 
 const verifyResetToken = (token: string): { userId: string } | null => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    if (decoded?.type !== 'password_reset') return null;
+    if (decoded?.type !== "password_reset") return null;
     return { userId: decoded.userId };
   } catch {
     return null;
@@ -155,35 +158,39 @@ const verifyResetToken = (token: string): { userId: string } | null => {
 };
 
 const buildResetLink = (token: string) => {
-  const baseClient = process.env.CLIENT_URL || 'http://localhost:5173';
-  return `${baseClient.replace(/\/$/, '')}/password-reset?token=${token}`;
+  const baseClient = process.env.CLIENT_URL || "http://localhost:5173";
+  return `${baseClient.replace(/\/$/, "")}/password-reset?token=${token}`;
 };
 
 const verifyGoogleToken = async (idToken: string) => {
   // @ts-ignore
-  const fetchImpl = (global as any).fetch ?? (await import('node-fetch')).default;
-  const response = await fetchImpl(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+  const fetchImpl =
+    (global as any).fetch ?? (await import("node-fetch")).default;
+  const response = await fetchImpl(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`
+  );
   if (!response.ok) {
-    throw new Error('Invalid Google token');
+    throw new Error("Invalid Google token");
   }
   const data = await response.json();
   const clientId = process.env.GOOGLE_CLIENT_ID;
 
   if (clientId && data.aud !== clientId) {
-    throw new Error('Google token audience mismatch');
+    throw new Error("Google token audience mismatch");
   }
   return {
     email: data.email as string,
     name: (data.name as string) || (data.email as string),
-    emailVerified: data.email_verified === 'true' || data.email_verified === true,
+    emailVerified:
+      data.email_verified === "true" || data.email_verified === true,
   };
 };
 
 export const routesLinks: Array<RouteLinkType> = [
   // ==================== AUTH ====================
   {
-    path: '/auth/register',
-    method: 'POST',
+    path: "/auth/register",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const input = registerSchema.parse(req.body);
@@ -191,7 +198,7 @@ export const routesLinks: Array<RouteLinkType> = [
         if (existing) {
           return routeResponse(
             res,
-            { has_error: true, message: 'User already exists', data: null },
+            { has_error: true, message: "User already exists", data: null },
             409
           );
         }
@@ -212,16 +219,16 @@ export const routesLinks: Array<RouteLinkType> = [
         try {
           const resetToken = buildResetToken(user);
           const link = buildResetLink(resetToken);
-          console.log("link", link) //TODO: delete
+          console.log("link", link); //TODO: delete
           await getEmail().sendInviteEmail(user.email, user.name, link);
         } catch (mailErr) {
-          console.warn('Failed to send invite email', mailErr);
+          console.warn("Failed to send invite email", mailErr);
         }
         return routeResponse(
           res,
           {
             has_error: false,
-            message: 'User registered successfully',
+            message: "User registered successfully",
             data: {
               token,
               user: sanitizeUser(user),
@@ -230,137 +237,231 @@ export const routesLinks: Array<RouteLinkType> = [
           201
         );
       } catch (error: any) {
-        const message = error instanceof z.ZodError ? 'Invalid registration data' : 'Registration failed';
-        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+        const message =
+          error instanceof z.ZodError
+            ? "Invalid registration data"
+            : "Registration failed";
+        return routeResponse(
+          res,
+          { has_error: true, message, data: error?.message },
+          400
+        );
       }
     },
   },
   {
-    path: '/auth/password-reset/request',
-    method: 'POST',
+    path: "/auth/password-reset/request",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       const schema = z.object({ email: z.string().email() });
       try {
         const { email } = schema.parse(req.body);
         const user = await getUsersRepository().getUserByEmail(email);
         if (!user) {
-          return routeResponse(res, { has_error: false, message: 'If the email exists, a reset link was sent.' });
+          return routeResponse(res, {
+            has_error: false,
+            message: "If the email exists, a reset link was sent.",
+          });
         }
         const resetToken = buildResetToken(user);
         const link = buildResetLink(resetToken);
-        console.log("link", link) //TODO: delete
+        console.log("link", link); //TODO: delete
         await getEmail().sendPasswordResetEmail(user.email, user.name, link);
-        return routeResponse(res, { has_error: false, message: 'Reset link sent.' });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Reset link sent.",
+        });
       } catch (error: any) {
-        const message = error instanceof z.ZodError ? 'Invalid request data' : 'Failed to process request';
-        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+        const message =
+          error instanceof z.ZodError
+            ? "Invalid request data"
+            : "Failed to process request";
+        return routeResponse(
+          res,
+          { has_error: true, message, data: error?.message },
+          400
+        );
       }
     },
   },
   {
-    path: '/auth/password-reset/confirm',
-    method: 'POST',
+    path: "/auth/password-reset/confirm",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
-      const schema = z.object({ token: z.string().min(10), password: z.string().min(6) });
+      const schema = z.object({
+        token: z.string().min(10),
+        password: z.string().min(6),
+      });
       try {
         const { token, password } = schema.parse(req.body);
         const decoded = verifyResetToken(token);
         if (!decoded) {
-          return routeResponse(res, { has_error: true, message: 'Invalid or expired token', data: null }, 400);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Invalid or expired token",
+              data: null,
+            },
+            400
+          );
         }
         const user = await getUsersRepository().getUser(decoded.userId);
         if (!user) {
-          return routeResponse(res, { has_error: true, message: 'User not found', data: null }, 404);
+          return routeResponse(
+            res,
+            { has_error: true, message: "User not found", data: null },
+            404
+          );
         }
         const passwordHash = await bcrypt.hash(password, 10);
-        await getUsersRepository().updateUser(user.id, { passwordHash, inviteStatus: InviteStatus.ACCEPTED });
-        return routeResponse(res, { has_error: false, message: 'Password updated successfully' });
+        await getUsersRepository().updateUser(user.id, {
+          passwordHash,
+          inviteStatus: InviteStatus.ACCEPTED,
+        });
+        return routeResponse(res, {
+          has_error: false,
+          message: "Password updated successfully",
+        });
       } catch (error: any) {
-        const message = error instanceof z.ZodError ? 'Invalid request data' : 'Failed to reset password';
-        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+        const message =
+          error instanceof z.ZodError
+            ? "Invalid request data"
+            : "Failed to reset password";
+        return routeResponse(
+          res,
+          { has_error: true, message, data: error?.message },
+          400
+        );
       }
     },
   },
   {
-    path: '/auth/google',
-    method: 'POST',
+    path: "/auth/google",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       const schema = z.object({ idToken: z.string().min(10) });
       try {
         const { idToken } = schema.parse(req.body);
         const profile = await verifyGoogleToken(idToken);
         if (!profile.email) {
-          return routeResponse(res, { has_error: true, message: 'Google account missing email', data: null }, 400);
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Google account missing email",
+              data: null,
+            },
+            400
+          );
         }
 
         let user = await getUsersRepository().getUserByEmail(profile.email);
         if (!user) {
-          throw new Error('Forbidden Login with Google. Reachout to admin for invitation.');
+          throw new Error(
+            "Forbidden Login with Google. Reachout to admin for invitation."
+          );
         }
 
         const token = signToken(user);
         return routeResponse(res, {
           has_error: false,
-          message: 'Google login successful',
+          message: "Google login successful",
           data: { token, user: sanitizeUser(user) },
         });
       } catch (error: any) {
-        const message = error instanceof z.ZodError ? 'Invalid Google login data' : error?.message || 'Google login failed';
-        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+        const message =
+          error instanceof z.ZodError
+            ? "Invalid Google login data"
+            : error?.message || "Google login failed";
+        return routeResponse(
+          res,
+          { has_error: true, message, data: error?.message },
+          400
+        );
       }
     },
   },
   {
-    path: '/auth/login',
-    method: 'POST',
+    path: "/auth/login",
+    method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
         const input = loginSchema.parse(req.body);
         const user = await getUsersRepository().getUserByEmail(input.email);
         if (!user) {
-          return routeResponse(res, { has_error: true, message: 'Invalid credentials', data: null }, 401);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Invalid credentials", data: null },
+            401
+          );
         }
 
         if (!user.isActive) {
-          return routeResponse(res, { has_error: true, message: 'Account is inactive', data: null }, 403);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Account is inactive", data: null },
+            403
+          );
         }
 
         const isValid = await bcrypt.compare(input.password, user.passwordHash);
         if (!isValid) {
-          return routeResponse(res, { has_error: true, message: 'Invalid credentials', data: null }, 401);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Invalid credentials", data: null },
+            401
+          );
         }
 
         const token = signToken(user);
         return routeResponse(res, {
           has_error: false,
-          message: 'Login successful',
+          message: "Login successful",
           data: {
             token,
             user: sanitizeUser(user),
           },
         });
       } catch (error: any) {
-        const message = error instanceof z.ZodError ? 'Invalid login data' : 'Login failed';
-        return routeResponse(res, { has_error: true, message, data: error?.message }, 400);
+        const message =
+          error instanceof z.ZodError ? "Invalid login data" : "Login failed";
+        return routeResponse(
+          res,
+          { has_error: true, message, data: error?.message },
+          400
+        );
       }
     },
   },
   {
-    path: '/auth/me',
-    method: 'GET',
+    path: "/auth/me",
+    method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
         const user = await getUserFromToken(req);
         if (!user) {
-          return routeResponse(res, { has_error: true, message: 'Unauthorized', data: null }, 401);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Unauthorized", data: null },
+            401
+          );
         }
         return routeResponse(res, {
           has_error: false,
-          message: 'User profile fetched',
+          message: "User profile fetched",
           data: sanitizeUser(user),
         });
       } catch (error: any) {
-        return routeResponse(res, { has_error: true, message: 'Failed to fetch user', data: error?.message }, 500);
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch user",
+            data: error?.message,
+          },
+          500
+        );
       }
     },
   },
@@ -398,28 +499,24 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const territory = req.query.territory as string;
-        const limit = Math.min(
-          parseInt((req.query.limit as string) || "20"),
-          100
-        );
-        const offset = parseInt((req.query.offset as string) || "0");
-
+        const { limit, offset, called } = req.query;
         let prospects;
+        let total;
         if (territory) {
-          prospects = await getProspectsRepository().listProspectsByTerritory(
-            territory
-          );
+          [prospects, total] =
+            await getProspectsRepository().listProspectsByTerritory(territory);
         } else {
-          prospects = await getProspectsRepository().listAllProspects();
+          [prospects, total] = await getProspectsRepository().listAllProspects(
+            Boolean(called) ,
+            Number(limit),
+            Number(offset)
+          );
         }
-
-        const total = prospects.length;
-        const paginated = prospects.slice(offset, offset + limit);
 
         return routeResponse(res, {
           has_error: false,
           message: "Prospects fetched successfully",
-          data: paginated,
+          data: prospects,
           total,
           offset,
           limit,
@@ -542,7 +639,7 @@ export const routesLinks: Array<RouteLinkType> = [
     method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospects =
+        const [prospects] =
           await getProspectsRepository().listProspectsByTerritory(
             req.params.territory
           );
@@ -617,7 +714,7 @@ export const routesLinks: Array<RouteLinkType> = [
           );
         }
 
-        const allProspects =
+        const [allProspects] =
           await getProspectsRepository().listProspectsByTerritory(
             fieldRep.territory
           );
@@ -809,9 +906,14 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const territory = req.query.territory as string | undefined;
-        console.log('territory', territory);
-        const appointments = await getAppointmentsRepository().listTodayAppointments(territory);
-        return routeResponse(res, { has_error: false, message: "Today's appointments fetched successfully", data: appointments });
+        console.log("territory", territory);
+        const appointments =
+          await getAppointmentsRepository().listTodayAppointments(territory);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Today's appointments fetched successfully",
+          data: appointments,
+        });
       } catch (error: any) {
         return routeResponse(
           res,
@@ -853,87 +955,6 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to update appointment",
-            data: error?.message,
-          },
-          500
-        );
-      }
-    },
-  },
-
-  // ==================== CALL OUTCOMES ====================
-  {
-    path: "/call-outcome",
-    method: "POST",
-    handler: async (req: Request, res: Response) => {
-      try {
-        const { prospectId, callerId, outcome, notes } = req.body;
-        await getCallHistoryRepository().recordCallOutcome(
-          prospectId,
-          callerId,
-          outcome,
-          notes
-        );
-        return routeResponse(res, {
-          has_error: false,
-          message: "Call outcome recorded successfully",
-          data: { status: "recorded" },
-        });
-      } catch (error: any) {
-        return routeResponse(
-          res,
-          {
-            has_error: true,
-            message: "Failed to record call outcome",
-            data: error?.message,
-          },
-          500
-        );
-      }
-    },
-  },
-  {
-    path: "/call-outcomes",
-    method: "GET",
-    handler: async (req: Request, res: Response) => {
-      try {
-        const callOutcomes =
-          await getCallOutcomesRepository().listCallOutcomes();
-        return routeResponse(res, {
-          has_error: false,
-          message: "Call outcomes fetched successfully",
-          data: callOutcomes,
-        });
-      } catch (error: any) {
-        return routeResponse(
-          res,
-          {
-            has_error: true,
-            message: "Failed to record call outcome",
-            data: error?.message,
-          },
-          500
-        );
-      }
-    },
-  },
-  {
-    path: "/call-outcomes/init",
-    method: "GET",
-    handler: async (req: Request, res: Response) => {
-      try {
-        await getCallOutcomesRepository().initializeCallOutcomes();
-        return routeResponse(res, {
-          has_error: false,
-          message: "Call outcomes initialized successfully",
-          data: { status: "initialized" },
-        });
-      } catch (error: any) {
-        return routeResponse(
-          res,
-          {
-            has_error: true,
-            message: "Failed to initialize call outcome",
             data: error?.message,
           },
           500
@@ -992,7 +1013,7 @@ export const routesLinks: Array<RouteLinkType> = [
     method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospects =
+        const [prospects] =
           await getProspectsRepository().listProspectsByTerritory(
             (req.body.territory as string) || ""
           );
@@ -1213,10 +1234,14 @@ export const routesLinks: Array<RouteLinkType> = [
         const passwordHash = input.passwordHash
           ? input.passwordHash
           : input.password
-            ? await bcrypt.hash(input.password, 10)
-            : null;
+          ? await bcrypt.hash(input.password, 10)
+          : null;
         if (!passwordHash) {
-          return routeResponse(res, { has_error: true, message: 'Password is required', data: null }, 400);
+          return routeResponse(
+            res,
+            { has_error: true, message: "Password is required", data: null },
+            400
+          );
         }
         const user = await getUsersRepository().createUser({
           email: input.email,
@@ -1232,10 +1257,18 @@ export const routesLinks: Array<RouteLinkType> = [
           const link = buildResetLink(resetToken);
           await getEmail().sendInviteEmail(user.email, user.name, link);
         } catch (mailErr) {
-          console.warn('Failed to send invite email', mailErr);
+          console.warn("Failed to send invite email", mailErr);
         }
 
-        return routeResponse(res, { has_error: false, message: 'User created successfully', data: user }, 201);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "User created successfully",
+            data: user,
+          },
+          201
+        );
       } catch (error: any) {
         return routeResponse(
           res,
@@ -1326,7 +1359,10 @@ export const routesLinks: Array<RouteLinkType> = [
           updateData.passwordHash = await bcrypt.hash(req.body.password, 10);
           delete updateData.password;
         }
-        const user = await getUsersRepository().updateUser(req.params.id, updateData);
+        const user = await getUsersRepository().updateUser(
+          req.params.id,
+          updateData
+        );
         if (!user) {
           return routeResponse(
             res,
@@ -1766,6 +1802,47 @@ export const routesLinks: Array<RouteLinkType> = [
     },
   },
 
+  // ==================== CALL HISTORY ====================
+  {
+    path: "/call-history",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { limit, offset } = req.query;
+        const callHistory = await getCallHistoryRepository().getCallHistory(
+          Number(limit),
+          Number(offset)
+        );
+        if (!callHistory) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Call history not found",
+              data: null,
+            },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call history fetched successfully",
+          data: callHistory,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch Call History",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
   // ==================== CALL OUTCOMES ====================
   {
     path: "/call-outcomes",
@@ -1891,6 +1968,61 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to delete call outcome",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+  {
+    path: "/call-outcome",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { prospectId, callerId, outcome, notes } = req.body;
+        await getCallHistoryRepository().recordCallOutcome(
+          prospectId,
+          callerId,
+          outcome,
+          notes
+        );
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call outcome recorded successfully",
+          data: { status: "recorded" },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to record call outcome",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/call-outcomes/init",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        await getCallOutcomesRepository().initializeCallOutcomes();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Call outcomes initialized successfully",
+          data: { status: "initialized" },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to initialize call outcome",
             data: error?.message,
           },
           500
@@ -2124,7 +2256,7 @@ export const routesLinks: Array<RouteLinkType> = [
           );
         }
 
-        const existingProspects =
+        const [existingProspects] =
           await getProspectsRepository().listAllProspects();
         const existingPhones = new Set(
           existingProspects.map((p) => p.phoneNumber)
@@ -2191,7 +2323,7 @@ export const routesLinks: Array<RouteLinkType> = [
     method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const prospects = await getProspectsRepository().listAllProspects();
+        const [prospects] = await getProspectsRepository().listAllProspects();
         let updated = 0;
         let failed = 0;
         const errors: string[] = [];
@@ -2558,20 +2690,29 @@ export const routesLinks: Array<RouteLinkType> = [
     method: "POST",
     handler: async (req: Request, res: Response) => {
       try {
-        const { CallSid, CallStatus, To, Duration } = req.body;
+        const { CallSid, ParentCallSid, CallStatus, To, Duration } = req.body;
         const prospectId = req.query.prospectId as string | undefined;
 
+        // Use ParentCallSid if available (for browser calls), otherwise use CallSid
+        // This ensures we use the same CallSid as the recording webhook
+        const callSidToUse = ParentCallSid || CallSid;
+
         console.log(
-          `Call ${CallSid} to ${To}: ${CallStatus} (duration: ${Duration}s)`
+          `Call ${callSidToUse} to ${To}: ${CallStatus} (duration: ${Duration}s)`
         );
         if (prospectId) {
           console.log(`ProspectId: ${prospectId}`);
         }
+        if (ParentCallSid) {
+          console.log(
+            `Using ParentCallSid: ${ParentCallSid} instead of ${CallSid}`
+          );
+        }
 
         // Save call status to database
-        if (CallSid && CallStatus) {
+        if (callSidToUse && CallStatus) {
           await getCallHistoryRepository().upsertCallHistory({
-            callSid: CallSid,
+            callSid: callSidToUse,
             status: CallStatus,
             prospectId,
           });
@@ -2616,6 +2757,7 @@ export const routesLinks: Array<RouteLinkType> = [
             );
 
             // Save recording URL and duration to database
+            const prospectId = req.query.prospectId as string | undefined;
             await getCallHistoryRepository().upsertCallHistory({
               callSid: CallSid,
               recordingUrl: s3Url,
@@ -2623,6 +2765,7 @@ export const routesLinks: Array<RouteLinkType> = [
                 ? parseInt(RecordingDuration)
                 : undefined,
               outcome: "Call completed",
+              prospectId, // Add prospectId from query params
             });
 
             console.log(
