@@ -37,6 +37,7 @@ import {
   insertTerritorySchema,
   insertProfessionSchema,
 } from "../validators/schemas.js";
+import { roundRobin } from '../util/round-robin.js';
 
 type ObjectValueType = {
   has_error: boolean;
@@ -2489,39 +2490,39 @@ export const routesLinks: Array<RouteLinkType> = [
         const existingPhones = new Set(
           existingProspects.map((p) => p.phoneNumber)
         );
+        const fieldReps = await getUsersRepository().listInsideSalesReps();
 
         const added: any[] = [];
         const skipped: any[] = [];
 
-        for (const contact of contacts) {
-          if (!contact.phone) {
-            skipped.push({ name: contact.name, reason: "No phone number" });
-            continue;
-          }
+        await roundRobin(fieldReps, contacts, async (prospectContact, fieldRep) => {
+          const hasNoPhone = !prospectContact.phone;
+          const isAlreadyInDatabase = existingPhones.has(prospectContact.phone);
 
-          if (existingPhones.has(contact.phone)) {
-            skipped.push({ name: contact.name, reason: "Already in database" });
-            continue;
-          }
+          if (hasNoPhone || isAlreadyInDatabase) {
+            skipped.push({ name: prospectContact.name, reason: hasNoPhone ? "No phone number" : "Already in database" });
+          } else {
+            try {
+              const prospect = await getProspectsRepository().createProspect({
+                businessName: prospectContact.name,
+                phoneNumber: prospectContact.phone,
+                addressStreet: prospectContact.address,
+                addressCity: prospectContact.city,
+                addressState: prospectContact.state,
+                addressZip: prospectContact.zip,
+                specialty,
+                territory,
+                addressLat: prospectContact.latitude?.toString(),
+                addressLng: prospectContact.longitude?.toString(),
+                assignedInsideSalesRepId: fieldRep.id,
+              });
 
-          try {
-            const prospect = await getProspectsRepository().createProspect({
-              businessName: contact.name,
-              phoneNumber: contact.phone,
-              addressStreet: contact.address,
-              addressCity: contact.city,
-              addressState: contact.state,
-              addressZip: contact.zip,
-              specialty,
-              territory,
-              addressLat: contact.latitude?.toString(),
-              addressLng: contact.longitude?.toString(),
-            });
-            added.push(prospect);
-          } catch (err) {
-            skipped.push({ name: contact.name, reason: "Failed to add" });
+              added.push(prospect);
+            } catch (err) {
+              skipped.push({ name: prospectContact.name, reason: "Failed to add" });
+            }
           }
-        }
+        });
 
         return routeResponse(res, {
           has_error: false,
