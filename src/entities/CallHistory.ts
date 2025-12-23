@@ -77,4 +77,7 @@ export class CallHistory {
   @ManyToOne("Prospect", "callHistory")
   @JoinColumn({ name: "prospect_id" })
   prospect?: any;
+  @ManyToOne("User", "callHistory")
+  @JoinColumn({ name: "caller_id" })
+  caller?: any;
 }

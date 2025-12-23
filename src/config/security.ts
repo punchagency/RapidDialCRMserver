@@ -1,8 +1,8 @@
-import helmet from 'helmet';
-import cors, { CorsOptions } from 'cors';
-import rateLimit from 'express-rate-limit';
-import { Express, Request, Response, NextFunction } from 'express';
-import dotenv from 'dotenv';
+import helmet from "helmet";
+import cors, { CorsOptions } from "cors";
+import rateLimit from "express-rate-limit";
+import { Express, Request, Response, NextFunction } from "express";
+import dotenv from "dotenv";
 
 // Load environment variables
 dotenv.config();
@@ -26,24 +26,31 @@ export class SecurityManager {
    */
   private _configureCORS(): CorsOptions {
     const allowedOrigins: string[] = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(',')
-      : ['http://localhost:3000', 'http://localhost:5173'];
+      ? process.env.ALLOWED_ORIGINS.split(",")
+      : ["http://localhost:3000", "http://localhost:5173"];
 
     return {
-      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      origin: (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void
+      ) => {
         // Allow requests with no origin (mobile apps, Postman, etc.)
-        if (!origin) return callback(null, true);
+        if (!origin) {
+          return callback(null, true);
+        }
 
         if (allowedOrigins.indexOf(origin) !== -1) {
           callback(null, true);
         } else {
-          callback(new Error('Not allowed by CORS'));
+          callback(new Error("Not allowed by CORS"));
         }
       },
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-      exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page']
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+      exposedHeaders: ["X-Total-Count", "X-Page", "X-Per-Page"],
+      preflightContinue: false,
+      optionsSuccessStatus: 204,
     };
   }
 
@@ -53,15 +60,15 @@ export class SecurityManager {
    */
   private _configureRateLimit(): ReturnType<typeof rateLimit> {
     return rateLimit({
-      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
-      max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10), // limit each IP to 100 requests per windowMs
-      message: 'Too many requests from this IP, please try again later.',
+      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000", 10), // 15 minutes
+      max: parseInt(process.env.RATE_LIMIT_MAX || "100", 10), // limit each IP to 100 requests per windowMs
+      message: "Too many requests from this IP, please try again later.",
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req: Request) => {
         // Skip rate limiting for health checks
-        return req.path === '/health';
-      }
+        return req.path === "/health";
+      },
     });
   }
 
@@ -80,7 +87,7 @@ export class SecurityManager {
         },
       },
       crossOriginEmbedderPolicy: false,
-      crossOriginResourcePolicy: { policy: "cross-origin" }
+      crossOriginResourcePolicy: { policy: "cross-origin" },
     });
   }
 
@@ -99,9 +106,8 @@ export class SecurityManager {
     app.use(this.rateLimiter);
 
     // Trust proxy (important for rate limiting behind reverse proxy)
-    app.set('trust proxy', 1);
+    app.set("trust proxy", 1);
 
-    console.log('Security middleware applied successfully');
+    console.log("Security middleware applied successfully");
   }
 }
-
