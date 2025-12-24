@@ -1,4 +1,4 @@
-import { DataSource, Repository } from "typeorm";
+import { Brackets, DataSource, Repository } from "typeorm";
 import { CallHistory, Prospect } from "../entities/index.js";
 import { getDatabaseManager } from "../config/database.js";
 
@@ -28,7 +28,9 @@ export interface ICallHistoryRepository {
 
   getAllCallHistory(
     limit: number,
-    offset: number
+    offset: number,
+    callerId?: string,
+    search?: string
   ): Promise<[CallHistory[], number]>;
   getCallByCallSid(callSid: string): Promise<CallHistory | null>;
 }
@@ -139,14 +141,35 @@ export class CallHistoryRepository implements ICallHistoryRepository {
 
   async getAllCallHistory(
     limit: number,
-    offset: number
+    offset: number,
+    callerId?: string,
+    search?: string
   ): Promise<[CallHistory[], number]> {
-    return await this.callHistoryRepo.findAndCount({
-      relations: ["prospect", "caller"],
-      order: { attemptDate: "DESC" },
-      take: limit || 100,
-      skip: offset || 0,
-    });
+    // console.log("getAllCallHistory", limit, offset, search, callerId);
+    const query = this.callHistoryRepo
+      .createQueryBuilder("callHistory")
+      .leftJoinAndSelect("callHistory.prospect", "prospect")
+      .leftJoinAndSelect("callHistory.caller", "caller")
+      .orderBy("callHistory.attemptDate", "DESC")
+      .take(limit || 100)
+      .skip(offset || 0);
+
+    if (callerId) {
+      query.andWhere("callHistory.callerId = :callerId", { callerId });
+    }
+    if (search) {
+      const searchTerm = `%${search}%`;
+
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where("prospect.businessName LIKE :search", {
+            search: searchTerm,
+          }).orWhere("caller.name LIKE :search", { search: searchTerm });
+        })
+      );
+    }
+
+    return await query.getManyAndCount();
   }
 
   async getCallByCallSid(callSid: string): Promise<CallHistory | null> {

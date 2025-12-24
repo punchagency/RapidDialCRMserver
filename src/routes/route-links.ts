@@ -1770,11 +1770,13 @@ export const routesLinks: Array<RouteLinkType> = [
     method: "GET",
     handler: async (req: Request, res: Response) => {
       try {
-        const { limit, offset } = req.query;
+        const { limit, offset, callerId, search } = req.query;
         const [callHistory, total] =
           await getCallHistoryRepository().getAllCallHistory(
-            Number(limit),
-            Number(offset)
+            Number(limit) || 20,
+            Number(offset) || 0,
+            callerId ? String(callerId) : undefined,
+            search ? String(search) : undefined
           );
         if (!callHistory) {
           return routeResponse(
