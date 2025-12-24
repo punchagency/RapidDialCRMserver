@@ -13,6 +13,7 @@ import {
   getSpecialtyColorsRepository,
   getCallOutcomesRepository,
   getFieldRepsRepository,
+  UserRole,
 
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
@@ -403,6 +404,8 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const territory = req.query.territory as string;
+        const userId = req.query.userId as string;
+        const role = req.query.role as string;
         const limit = Math.min(
           parseInt((req.query.limit as string) || "20"),
           100
@@ -416,6 +419,10 @@ export const routesLinks: Array<RouteLinkType> = [
           );
         } else {
           prospects = await getProspectsRepository().listAllProspects();
+        }
+
+        if (userId && role === UserRole.INSIDE_SALES_REP) {
+          prospects = prospects.filter((prospect) => prospect.assignedInsideSalesRepId === userId);
         }
 
         const total = prospects.length;
