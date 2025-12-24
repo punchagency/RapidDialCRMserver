@@ -14,7 +14,6 @@ import {
   getCallOutcomesRepository,
   getFieldRepsRepository,
   UserRole,
-
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
 import { getLiveKitService } from "../services/LiveKitService.js";
@@ -517,12 +516,14 @@ export const routesLinks: Array<RouteLinkType> = [
         } else {
           [prospects, total] = await getProspectsRepository().listAllProspects(
             Boolean(called),
-        if (userId && role === UserRole.INSIDE_SALES_REP) {
-          prospects = prospects.filter((prospect) => prospect.assignedInsideSalesRepId === userId);
-        }
-
             Number(limit),
             Number(offset)
+          );
+        }
+
+        if (userId && role === UserRole.INSIDE_SALES_REP) {
+          prospects = prospects.filter(
+            (prospect) => prospect.assignedInsideSalesRepId === userId
           );
         }
 
