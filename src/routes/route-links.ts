@@ -25,6 +25,7 @@ import { InviteStatus, User } from "../entities/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import axios from "axios";
 import {
   insertProspectSchema,
   insertFieldRepSchema,
@@ -169,27 +170,28 @@ const buildResetLink = (token: string) => {
 };
 
 const verifyGoogleToken = async (idToken: string) => {
-  // @ts-ignore
-  const fetchImpl =
-    (global as any).fetch ?? (await import("node-fetch")).default;
-  const response = await fetchImpl(
-    `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`
-  );
-  if (!response.ok) {
-    throw new Error("Invalid Google token");
-  }
-  const data = await response.json();
-  const clientId = process.env.GOOGLE_CLIENT_ID;
+  try {
+    const response = await axios.get(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`
+    );
+    const data = response.data;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
 
-  if (clientId && data.aud !== clientId) {
-    throw new Error("Google token audience mismatch");
+    if (clientId && data.aud !== clientId) {
+      throw new Error("Google token audience mismatch");
+    }
+    return {
+      email: data.email as string,
+      name: (data.name as string) || (data.email as string),
+      emailVerified:
+        data.email_verified === "true" || data.email_verified === true,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error("Invalid Google token");
+    }
+    throw error;
   }
-  return {
-    email: data.email as string,
-    name: (data.name as string) || (data.email as string),
-    emailVerified:
-      data.email_verified === "true" || data.email_verified === true,
-  };
 };
 
 export const routesLinks: Array<RouteLinkType> = [
@@ -1248,8 +1250,8 @@ export const routesLinks: Array<RouteLinkType> = [
         const passwordHash = input.passwordHash
           ? input.passwordHash
           : input.password
-          ? await bcrypt.hash(input.password, 10)
-          : null;
+            ? await bcrypt.hash(input.password, 10)
+            : null;
         if (!passwordHash) {
           return routeResponse(
             res,
@@ -2775,8 +2777,7 @@ export const routesLinks: Array<RouteLinkType> = [
           } catch (err) {
             failed++;
             errors.push(
-              `Prospect ${prospect.id}: ${
-                err instanceof Error ? err.message : "Unknown error"
+              `Prospect ${prospect.id}: ${err instanceof Error ? err.message : "Unknown error"
               }`
             );
           }
