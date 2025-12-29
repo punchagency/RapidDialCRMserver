@@ -25,9 +25,7 @@ export class SecurityManager {
    * @returns {CorsOptions} CORS configuration object
    */
   private _configureCORS(): CorsOptions {
-    const allowedOrigins: string[] = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(",")
-      : ["http://localhost:3000", "http://localhost:5173"];
+    const allowedOrigins: string[] = process.env.ALLOWED_ORIGINS?.split(",") || [];
 
     return {
       origin: (
