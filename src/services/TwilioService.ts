@@ -275,6 +275,7 @@ export class TwilioService {
       // Create descriptive filename
       let uniqueFileName: string;
       if (phoneNumber) {
+        // Create descriptive filename with phone number
         const now = new Date();
         const timestamp = now
           .toISOString()
@@ -282,20 +283,17 @@ export class TwilioService {
           .replace(/\..+/, "")
           .replace(/:/g, "-");
 
-        // Clean phone number for filename (remove special characters)
-        const cleanPhone = phoneNumber.replace(/[^\d]/g, "");
+        // Clean phone number: remove all non-digits and format
+        const cleanPhone = phoneNumber.replace(/\D/g, "");
+
+        // Format phone number for filename (remove + to avoid URL encoding issues)
         const formattedPhone =
-          cleanPhone.length === 11 && cleanPhone.startsWith("1")
-            ? `(${cleanPhone.slice(1, 4)}) ${cleanPhone.slice(
-                4,
-                7
-              )}-${cleanPhone.slice(7)}`
-            : cleanPhone.length === 10
-            ? `(${cleanPhone.slice(0, 3)}) ${cleanPhone.slice(
+          cleanPhone.length === 13 // Assuming E.164 format like +12345678900
+            ? `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(
                 3,
                 6
               )}-${cleanPhone.slice(6)}`
-            : phoneNumber;
+            : cleanPhone; // If not 13 digits, just use the cleaned phone number
 
         uniqueFileName = `Call_recording_of_${formattedPhone}_at_${timestamp}.mp3`;
       } else {

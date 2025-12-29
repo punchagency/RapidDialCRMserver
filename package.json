@@ -20,8 +20,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.952.0",
     "@linear/sdk": "^55.2.1",
-    "axios": "^1.13.2",
     "@types/nodemailer": "^7.0.4",
+    "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -48,6 +48,7 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.10.0",
+    "@types/node-fetch": "^2.6.13",
     "@types/pg": "^8.10.9",
     "concurrently": "^8.2.2",
     "nodemon": "^3.0.2",

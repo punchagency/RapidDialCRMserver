@@ -1,4 +1,4 @@
-import { DataSource, Repository } from "typeorm";
+import { Brackets, DataSource, Repository } from "typeorm";
 import { CallHistory, Prospect } from "../entities/index.js";
 import { getDatabaseManager } from "../config/database.js";
 
@@ -26,7 +26,12 @@ export interface ICallHistoryRepository {
     outcome?: string;
   }): Promise<CallHistory>;
 
-  getCallHistory(): Promise<CallHistory[]>;
+  getAllCallHistory(
+    limit: number,
+    offset: number,
+    callerId?: string,
+    search?: string
+  ): Promise<[CallHistory[], number]>;
   getCallByCallSid(callSid: string): Promise<CallHistory | null>;
 }
 
@@ -65,7 +70,7 @@ export class CallHistoryRepository implements ICallHistoryRepository {
     // Update the most recent call record with outcome
     await this.callHistoryRepo.update(
       { callSid: recentCall.callSid },
-      { outcome,notes }
+      { outcome, notes }
     );
 
     // Update prospect's lastContactDate
@@ -103,7 +108,7 @@ export class CallHistoryRepository implements ICallHistoryRepository {
       if (status !== undefined) existing.status = status;
       if (recordingUrl !== undefined) existing.recordingUrl = recordingUrl;
       if (duration !== undefined) existing.callDuration = duration;
-      if (prospectId !== undefined && !existing.prospectId) {
+      if (prospectId !== undefined) {
         existing.prospectId = prospectId;
       }
       if (outcome !== undefined) existing.outcome = outcome;
@@ -132,6 +137,39 @@ export class CallHistoryRepository implements ICallHistoryRepository {
       relations: ["prospect"],
       order: { attemptDate: "DESC" },
     });
+  }
+
+  async getAllCallHistory(
+    limit: number,
+    offset: number,
+    callerId?: string,
+    search?: string
+  ): Promise<[CallHistory[], number]> {
+    // console.log("getAllCallHistory", limit, offset, search, callerId);
+    const query = this.callHistoryRepo
+      .createQueryBuilder("callHistory")
+      .leftJoinAndSelect("callHistory.prospect", "prospect")
+      .leftJoinAndSelect("callHistory.caller", "caller")
+      .orderBy("callHistory.attemptDate", "DESC")
+      .take(limit || 100)
+      .skip(offset || 0);
+
+    if (callerId) {
+      query.andWhere("callHistory.callerId = :callerId", { callerId });
+    }
+    if (search) {
+      const searchTerm = `%${search}%`;
+
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where("prospect.businessName LIKE :search", {
+            search: searchTerm,
+          }).orWhere("caller.name LIKE :search", { search: searchTerm });
+        })
+      );
+    }
+
+    return await query.getManyAndCount();
   }
 
   async getCallByCallSid(callSid: string): Promise<CallHistory | null> {
