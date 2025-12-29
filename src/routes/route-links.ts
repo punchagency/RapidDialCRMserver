@@ -13,6 +13,7 @@ import {
   getSpecialtyColorsRepository,
   getCallOutcomesRepository,
   getFieldRepsRepository,
+  getTeamRelationshipsRepository,
   UserRole,
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
@@ -3220,6 +3221,151 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to fetch Twilio config",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  // ==================== TEAM RELATIONSHIPS ====================
+  {
+    path: "/team-relationships",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { insideRepId } = req.query;
+
+        if (insideRepId && typeof insideRepId === "string") {
+          const relationships = await getTeamRelationshipsRepository().getRelationshipsByInsideRep(insideRepId);
+          return routeResponse(res, {
+            has_error: false,
+            message: "Team relationships fetched successfully",
+            data: relationships,
+          });
+        }
+
+        const allRelationships = await getTeamRelationshipsRepository().getAllRelationships();
+        return routeResponse(res, {
+          has_error: false,
+          message: "All team relationships fetched successfully",
+          data: allRelationships,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch team relationships",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/team-relationships",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { insideRepId, fieldRepIds, managerIds } = req.body;
+
+        if (!insideRepId) {
+          return routeResponse(
+            res,
+            { has_error: true, message: "insideRepId is required", data: null },
+            400
+          );
+        }
+
+        // Validate inside rep exists
+        const insideRep = await getUsersRepository().getUser(insideRepId);
+        if (!insideRep || insideRep.role !== "inside_sales_rep") {
+          return routeResponse(
+            res,
+            { has_error: true, message: "Invalid inside sales rep", data: null },
+            400
+          );
+        }
+
+        // Validate field reps exist
+        if (fieldRepIds && Array.isArray(fieldRepIds)) {
+          for (const fieldRepId of fieldRepIds) {
+            const fieldRep = await getFieldRepsRepository().getFieldRep(fieldRepId);
+            if (!fieldRep) {
+              return routeResponse(
+                res,
+                { has_error: true, message: `Field rep ${fieldRepId} not found`, data: null },
+                400
+              );
+            }
+          }
+        }
+
+        // Validate managers exist
+        if (managerIds && Array.isArray(managerIds)) {
+          for (const managerId of managerIds) {
+            const manager = await getUsersRepository().getUser(managerId);
+            if (!manager || manager.role !== "manager") {
+              return routeResponse(
+                res,
+                { has_error: true, message: `Manager ${managerId} not found or invalid role`, data: null },
+                400
+              );
+            }
+          }
+        }
+
+        await getTeamRelationshipsRepository().saveRelationships(
+          insideRepId,
+          fieldRepIds || [],
+          managerIds || []
+        );
+
+        const relationships = await getTeamRelationshipsRepository().getRelationshipsByInsideRep(insideRepId);
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Team relationships saved successfully",
+          data: relationships,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to save team relationships",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/team-relationships/:insideRepId",
+    method: "DELETE",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { insideRepId } = req.params;
+
+        await getTeamRelationshipsRepository().deleteRelationshipsByInsideRep(insideRepId);
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Team relationships deleted successfully",
+          data: null,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete team relationships",
             data: error?.message,
           },
           500

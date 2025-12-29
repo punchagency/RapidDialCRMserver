@@ -12,6 +12,7 @@ export { Profession } from './Profession.js';
 export { SpecialtyColor } from './SpecialtyColor.js';
 export { CallOutcome } from './CallOutcome.js';
 export { Issue } from './Issue.js';
+export { TeamRelationship } from './TeamRelationship.js';
 
 // Export types
 export type { IssueStatus, IssuePriority } from './Issue.js';

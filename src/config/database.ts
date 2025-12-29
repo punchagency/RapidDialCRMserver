@@ -14,6 +14,7 @@ import {
   SpecialtyColor,
   CallOutcome,
   Issue,
+  TeamRelationship,
 } from "../entities/index.js";
 
 // Load environment variables
@@ -51,6 +52,7 @@ export class DatabaseManager {
       SpecialtyColor,
       CallOutcome,
       Issue,
+      TeamRelationship,
     ];
 
     const commonConfig: Partial<DataSourceOptions> = {
