@@ -15,6 +15,7 @@ import {
   CallOutcome,
   Issue,
   TeamRelationship,
+  EmailTemplate,
 } from "../entities/index.js";
 
 // Load environment variables
@@ -53,6 +54,7 @@ export class DatabaseManager {
       CallOutcome,
       Issue,
       TeamRelationship,
+      EmailTemplate,
     ];
 
     const commonConfig: Partial<DataSourceOptions> = {

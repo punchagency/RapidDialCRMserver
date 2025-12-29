@@ -14,6 +14,7 @@ import {
   getCallOutcomesRepository,
   getFieldRepsRepository,
   getTeamRelationshipsRepository,
+  getEmailTemplatesRepository,
   UserRole,
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
@@ -923,7 +924,6 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const territory = req.query.territory as string | undefined;
-        console.log("territory", territory);
         const appointments =
           await getAppointmentsRepository().listTodayAppointments(territory);
         return routeResponse(res, {
@@ -3366,6 +3366,212 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to delete team relationships",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  // ==================== EMAIL TEMPLATES ====================
+  {
+    path: "/email-templates",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { specialty } = req.query;
+
+        if (specialty && typeof specialty === "string") {
+          const templates = await getEmailTemplatesRepository().getTemplatesBySpecialty(specialty);
+          return routeResponse(res, {
+            has_error: false,
+            message: "Email templates fetched successfully",
+            data: templates,
+          });
+        }
+
+        const templates = await getEmailTemplatesRepository().getAllTemplates();
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email templates fetched successfully",
+          data: templates,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch email templates",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/email-templates/:id",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const template = await getEmailTemplatesRepository().getTemplateById(id);
+
+        if (!template) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Email template not found",
+              data: null,
+            },
+            404
+          );
+        }
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email template fetched successfully",
+          data: template,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch email template",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/email-templates",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { name, subject, body, specialty } = req.body;
+
+        if (!name || !subject || !body) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Name, subject, and body are required",
+              data: null,
+            },
+            400
+          );
+        }
+
+        const template = await getEmailTemplatesRepository().createTemplate({
+          name,
+          subject,
+          body,
+          specialty: specialty || undefined,
+        });
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email template created successfully",
+          data: template,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to create email template",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/email-templates/:id",
+    method: "PATCH",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const { name, subject, body, specialty } = req.body;
+
+        const template = await getEmailTemplatesRepository().updateTemplate(id, {
+          name,
+          subject,
+          body,
+          specialty: specialty !== undefined ? (specialty || undefined) : undefined,
+        });
+
+        if (!template) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Email template not found",
+              data: null,
+            },
+            404
+          );
+        }
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email template updated successfully",
+          data: template,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update email template",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/email-templates/:id",
+    method: "DELETE",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const deleted = await getEmailTemplatesRepository().deleteTemplate(id);
+
+        if (!deleted) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Email template not found",
+              data: null,
+            },
+            404
+          );
+        }
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email template deleted successfully",
+          data: null,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete email template",
             data: error?.message,
           },
           500
