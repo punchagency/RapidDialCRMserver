@@ -15,7 +15,7 @@ export class CallHistory {
   @Column({ name: "prospect_id", type: "varchar", nullable: true })
   prospectId?: string;
 
-  @Column({ name: "caller_id", type: "varchar", length: 100, nullable: true })
+  @Column({ name: "caller_id", type: "varchar", nullable: true })
   callerId?: string;
 
   @Column({

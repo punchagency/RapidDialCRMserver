@@ -18,7 +18,9 @@ export class Server {
   constructor(app: Express) {
     this.app = app;
     this.port = parseInt(process.env.PORT || '3001', 10);
-    this.host = process.env.HOST || 'localhost';
+    // On Heroku/cloud platforms, bind to 0.0.0.0 to accept external connections
+    // If PORT is set (Heroku always sets this), use 0.0.0.0, otherwise use localhost for local dev
+    this.host = process.env.HOST || (process.env.PORT ? '0.0.0.0' : 'localhost');
   }
 
   /**
