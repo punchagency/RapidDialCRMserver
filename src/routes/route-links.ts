@@ -1250,8 +1250,8 @@ export const routesLinks: Array<RouteLinkType> = [
         const passwordHash = input.passwordHash
           ? input.passwordHash
           : input.password
-            ? await bcrypt.hash(input.password, 10)
-            : null;
+          ? await bcrypt.hash(input.password, 10)
+          : null;
         if (!passwordHash) {
           return routeResponse(
             res,
@@ -2777,7 +2777,8 @@ export const routesLinks: Array<RouteLinkType> = [
           } catch (err) {
             failed++;
             errors.push(
-              `Prospect ${prospect.id}: ${err instanceof Error ? err.message : "Unknown error"
+              `Prospect ${prospect.id}: ${
+                err instanceof Error ? err.message : "Unknown error"
               }`
             );
           }
@@ -3078,14 +3079,22 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const to = req.body.To || req.body.to;
+        const caller = req.body.Caller || req.body.caller;
         const prospectId = req.body.prospectId;
+        const callerId = caller?.startsWith("client:")
+          ? caller.substring(7)
+          : caller;
+
         console.log("twilio voice", req.body);
         console.log("twilio voice", to);
         console.log("twilio voice", prospectId);
+        console.log("twilio voice callerId (stripped):", callerId);
+
         const twiml = getTwilioService().getTwiMLForBrowserCall(
           to,
           undefined,
-          prospectId
+          prospectId,
+          callerId
         );
         res.type("text/xml");
         return res.send(twiml);
@@ -3102,9 +3111,7 @@ export const routesLinks: Array<RouteLinkType> = [
       try {
         const { CallSid, ParentCallSid, CallStatus, To, Duration } = req.body;
         const prospectId = req.query.prospectId as string | undefined;
-
-        // Use ParentCallSid if available (for browser calls), otherwise use CallSid
-        // This ensures we use the same CallSid as the recording webhook
+        const callerId = req.query.callerId as string | undefined;
         const callSidToUse = ParentCallSid || CallSid;
 
         console.log(
@@ -3112,6 +3119,9 @@ export const routesLinks: Array<RouteLinkType> = [
         );
         if (prospectId) {
           console.log(`ProspectId: ${prospectId}`);
+        }
+        if (callerId) {
+          console.log(`CallerId: ${callerId}`);
         }
         if (ParentCallSid) {
           console.log(
@@ -3125,6 +3135,7 @@ export const routesLinks: Array<RouteLinkType> = [
             callSid: callSidToUse,
             status: CallStatus,
             prospectId,
+            callerId,
           });
         }
 
