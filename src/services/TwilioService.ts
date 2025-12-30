@@ -173,7 +173,8 @@ export class TwilioService {
   getTwiMLForBrowserCall(
     to: string,
     from?: string,
-    prospectId?: string
+    prospectId?: string,
+    callerId?: string
   ): string {
     const VoiceResponse = twilio.twiml.VoiceResponse;
     const response = new VoiceResponse();
@@ -190,6 +191,18 @@ export class TwilioService {
             prospectId
           )}`
         : `${baseUrl}/api/v1/twilio/recording?phoneNumber=${encodedPhone}`;
+      const statusCallbackParams = new URLSearchParams();
+      if (prospectId) {
+        statusCallbackParams.append("prospectId", prospectId);
+      }
+      if (callerId) {
+        statusCallbackParams.append("callerId", callerId);
+      }
+      const statusCallbackUrl = `${baseUrl}/api/v1/twilio/status${
+        statusCallbackParams.toString()
+          ? `?${statusCallbackParams.toString()}`
+          : ""
+      }`;
 
       const dial = response.dial({
         callerId: from || this.phoneNumber || undefined,
@@ -207,9 +220,7 @@ export class TwilioService {
             "answered",
             "completed",
           ],
-          statusCallback: `${baseUrl}/api/v1/twilio/status${
-            prospectId ? `?prospectId=${encodeURIComponent(prospectId)}` : ""
-          }`,
+          statusCallback: statusCallbackUrl,
         },
 
         to

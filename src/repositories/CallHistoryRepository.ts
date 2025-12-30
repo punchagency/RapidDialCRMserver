@@ -15,7 +15,7 @@ export interface ICallHistoryRepository {
 
   /**
    * Upsert call history - creates or updates a call record
-   * Handles status, recording URL, duration, and prospectId updates
+   * Handles status, recording URL, duration, prospectId, and callerId updates
    */
   upsertCallHistory(params: {
     callSid: string;
@@ -24,6 +24,7 @@ export interface ICallHistoryRepository {
     duration?: number;
     prospectId?: string;
     outcome?: string;
+    callerId?: string;
   }): Promise<CallHistory>;
 
   getAllCallHistory(
@@ -57,7 +58,7 @@ export class CallHistoryRepository implements ICallHistoryRepository {
   ): Promise<void> {
     // Find the most recent call record for this prospect
     const recentCall = await this.callHistoryRepo.findOne({
-      where: { prospectId },
+      where: { prospectId, callerId },
       order: { attemptDate: "DESC" },
     });
 
@@ -94,9 +95,17 @@ export class CallHistoryRepository implements ICallHistoryRepository {
     duration?: number;
     prospectId?: string;
     outcome?: string;
+    callerId?: string;
   }): Promise<CallHistory> {
-    const { callSid, status, recordingUrl, duration, prospectId, outcome } =
-      params;
+    const {
+      callSid,
+      status,
+      recordingUrl,
+      duration,
+      prospectId,
+      outcome,
+      callerId,
+    } = params;
 
     console.log(`Upserting call history for callSid: ${callSid}`, params);
 
@@ -112,6 +121,7 @@ export class CallHistoryRepository implements ICallHistoryRepository {
         existing.prospectId = prospectId;
       }
       if (outcome !== undefined) existing.outcome = outcome;
+      if (callerId !== undefined) existing.callerId = callerId;
 
       console.log(`Updating existing call history:`, existing);
       return await this.callHistoryRepo.save(existing);
@@ -125,6 +135,7 @@ export class CallHistoryRepository implements ICallHistoryRepository {
       callDuration: duration,
       prospectId,
       outcome: outcome || "Call in progress",
+      callerId,
       attemptDate: new Date(),
     });
 
