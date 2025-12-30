@@ -26,6 +26,7 @@ export class SecurityManager {
    */
   private _configureCORS(): CorsOptions {
     const allowedOrigins: string[] = process.env.ALLOWED_ORIGINS?.split(",") || [];
+    console.log("✅ allowedOrigins", allowedOrigins);
 
     return {
       origin: (
