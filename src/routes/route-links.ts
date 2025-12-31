@@ -15,6 +15,7 @@ import {
   getFieldRepsRepository,
   getTeamRelationshipsRepository,
   getEmailTemplatesRepository,
+  getEmailLogRepository,
   UserRole,
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
@@ -3640,11 +3641,21 @@ export const routesLinks: Array<RouteLinkType> = [
             400
           );
         }
-        getEmailService().sendMail({
+        const emailService = getEmailService();
+        await emailService.sendMail({
           title: name,
           subject,
           text: body,
           to,
+        });
+
+        // Log the email to the database
+        await getEmailLogRepository().logEmail({
+          to,
+          subject,
+          body,
+          title: name || undefined,
+          status: "sent",
         });
 
         return routeResponse(res, {

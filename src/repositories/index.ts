@@ -14,5 +14,4 @@ export * from "./ProfessionsRepository.js";
 export * from "./IssuesRepository.js";
 export * from "./TeamRelationshipsRepository.js";
 export * from "./EmailTemplatesRepository.js";
-
-
+export * from "./EmailLogRepository.js";
