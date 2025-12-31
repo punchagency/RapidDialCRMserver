@@ -49,6 +49,7 @@ export class ProspectsRepository implements IProspectsRepository {
       take: limit || 100,
       skip: offset || 0,
       where: whereClause,
+      order: { createdAt: "DESC" },
     });
   }
 
