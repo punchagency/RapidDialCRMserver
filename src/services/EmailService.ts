@@ -1,9 +1,10 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 type MailInput = {
+  title?: string;
   to: string;
   subject: string;
-  html: string;
+  html?: string;
   text?: string;
 };
 
@@ -12,11 +13,13 @@ class EmailService {
   private from: string;
 
   constructor() {
-    const host = process.env.SMTP_HOST || 'smtp.example.com';
+    const host = process.env.SMTP_HOST || "smtp.example.com";
     const port = Number(process.env.SMTP_PORT || 587);
-    const user = process.env.SMTP_USER || '';
-    const pass = process.env.SMTP_PASS || '';
-    this.from = process.env.SMTP_FROM || `no-reply@${host.replace(/^smtp\./, '')}`;
+    const user = process.env.SMTP_USER || "";
+    const pass = process.env.SMTP_PASS || "";
+
+    this.from =
+      process.env.SMTP_FROM || `no-reply@${host.replace(/^smtp\./, "")}`;
 
     this.transporter = nodemailer.createTransport({
       host,
@@ -27,10 +30,11 @@ class EmailService {
   }
 
   async sendMail(input: MailInput) {
-    const emailTitle = this.from.split('@')[0];
+    const emailTitle = this.from.split("@")[0];
+    const title = input.title || "Quantum Punch" || emailTitle;
 
     await this.transporter.sendMail({
-      from: `${emailTitle} <${this.from}>`,
+      from: `${title} <${this.from}>`,
       to: input.to,
       subject: input.subject,
       html: input.html,
@@ -39,9 +43,9 @@ class EmailService {
   }
 
   async sendInviteEmail(to: string, name: string, link: string) {
-    const subject = 'You have been invited to QuantumPunch CRM';
+    const subject = "You have been invited to QuantumPunch CRM";
     const html = `
-      <p>Hi ${name || 'there'},</p>
+      <p>Hi ${name || "there"},</p>
       <p>You have been invited to join QuantumPunch CRM.</p>
       <p>Please set your password here:</p>
       <p><a href="${link}">${link}</a></p>
@@ -51,9 +55,9 @@ class EmailService {
   }
 
   async sendPasswordResetEmail(to: string, name: string, link: string) {
-    const subject = 'Reset your QuantumPunch password';
+    const subject = "Reset your QuantumPunch password";
     const html = `
-      <p>Hi ${name || 'there'},</p>
+      <p>Hi ${name || "there"},</p>
       <p>We received a request to reset your password.</p>
       <p>You can set a new password here:</p>
       <p><a href="${link}">${link}</a></p>
@@ -71,4 +75,3 @@ export const getEmailService = () => {
   }
   return emailService;
 };
-

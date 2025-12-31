@@ -3249,7 +3249,10 @@ export const routesLinks: Array<RouteLinkType> = [
         const { insideRepId } = req.query;
 
         if (insideRepId && typeof insideRepId === "string") {
-          const relationships = await getTeamRelationshipsRepository().getRelationshipsByInsideRep(insideRepId);
+          const relationships =
+            await getTeamRelationshipsRepository().getRelationshipsByInsideRep(
+              insideRepId
+            );
           return routeResponse(res, {
             has_error: false,
             message: "Team relationships fetched successfully",
@@ -3257,7 +3260,8 @@ export const routesLinks: Array<RouteLinkType> = [
           });
         }
 
-        const allRelationships = await getTeamRelationshipsRepository().getAllRelationships();
+        const allRelationships =
+          await getTeamRelationshipsRepository().getAllRelationships();
         return routeResponse(res, {
           has_error: false,
           message: "All team relationships fetched successfully",
@@ -3297,7 +3301,11 @@ export const routesLinks: Array<RouteLinkType> = [
         if (!insideRep || insideRep.role !== "inside_sales_rep") {
           return routeResponse(
             res,
-            { has_error: true, message: "Invalid inside sales rep", data: null },
+            {
+              has_error: true,
+              message: "Invalid inside sales rep",
+              data: null,
+            },
             400
           );
         }
@@ -3305,11 +3313,17 @@ export const routesLinks: Array<RouteLinkType> = [
         // Validate field reps exist
         if (fieldRepIds && Array.isArray(fieldRepIds)) {
           for (const fieldRepId of fieldRepIds) {
-            const fieldRep = await getFieldRepsRepository().getFieldRep(fieldRepId);
+            const fieldRep = await getFieldRepsRepository().getFieldRep(
+              fieldRepId
+            );
             if (!fieldRep) {
               return routeResponse(
                 res,
-                { has_error: true, message: `Field rep ${fieldRepId} not found`, data: null },
+                {
+                  has_error: true,
+                  message: `Field rep ${fieldRepId} not found`,
+                  data: null,
+                },
                 400
               );
             }
@@ -3323,7 +3337,11 @@ export const routesLinks: Array<RouteLinkType> = [
             if (!manager || manager.role !== "manager") {
               return routeResponse(
                 res,
-                { has_error: true, message: `Manager ${managerId} not found or invalid role`, data: null },
+                {
+                  has_error: true,
+                  message: `Manager ${managerId} not found or invalid role`,
+                  data: null,
+                },
                 400
               );
             }
@@ -3336,7 +3354,10 @@ export const routesLinks: Array<RouteLinkType> = [
           managerIds || []
         );
 
-        const relationships = await getTeamRelationshipsRepository().getRelationshipsByInsideRep(insideRepId);
+        const relationships =
+          await getTeamRelationshipsRepository().getRelationshipsByInsideRep(
+            insideRepId
+          );
 
         return routeResponse(res, {
           has_error: false,
@@ -3364,7 +3385,9 @@ export const routesLinks: Array<RouteLinkType> = [
       try {
         const { insideRepId } = req.params;
 
-        await getTeamRelationshipsRepository().deleteRelationshipsByInsideRep(insideRepId);
+        await getTeamRelationshipsRepository().deleteRelationshipsByInsideRep(
+          insideRepId
+        );
 
         return routeResponse(res, {
           has_error: false,
@@ -3394,7 +3417,10 @@ export const routesLinks: Array<RouteLinkType> = [
         const { specialty } = req.query;
 
         if (specialty && typeof specialty === "string") {
-          const templates = await getEmailTemplatesRepository().getTemplatesBySpecialty(specialty);
+          const templates =
+            await getEmailTemplatesRepository().getTemplatesBySpecialty(
+              specialty
+            );
           return routeResponse(res, {
             has_error: false,
             message: "Email templates fetched successfully",
@@ -3428,7 +3454,9 @@ export const routesLinks: Array<RouteLinkType> = [
     handler: async (req: Request, res: Response) => {
       try {
         const { id } = req.params;
-        const template = await getEmailTemplatesRepository().getTemplateById(id);
+        const template = await getEmailTemplatesRepository().getTemplateById(
+          id
+        );
 
         if (!template) {
           return routeResponse(
@@ -3514,12 +3542,16 @@ export const routesLinks: Array<RouteLinkType> = [
         const { id } = req.params;
         const { name, subject, body, specialty } = req.body;
 
-        const template = await getEmailTemplatesRepository().updateTemplate(id, {
-          name,
-          subject,
-          body,
-          specialty: specialty !== undefined ? (specialty || undefined) : undefined,
-        });
+        const template = await getEmailTemplatesRepository().updateTemplate(
+          id,
+          {
+            name,
+            subject,
+            body,
+            specialty:
+              specialty !== undefined ? specialty || undefined : undefined,
+          }
+        );
 
         if (!template) {
           return routeResponse(
@@ -3583,6 +3615,49 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to delete email template",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+  {
+    path: "/email",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { name, subject, body, to } = req.body;
+
+        if (!subject || !body || !to) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Subject, body and to are required",
+              data: null,
+            },
+            400
+          );
+        }
+        getEmailService().sendMail({
+          title: name,
+          subject,
+          text: body,
+          to,
+        });
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email sent successfully",
+          data: null,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to send email ",
             data: error?.message,
           },
           500
