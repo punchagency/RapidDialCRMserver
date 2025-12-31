@@ -3748,6 +3748,78 @@ export const routesLinks: Array<RouteLinkType> = [
     },
   },
 
+  // ==================== EMAIL LOGS ====================
+  {
+    path: "/email",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { limit, offset, search } = req.query;
+
+        const [logs, count] = await getEmailLogRepository().getAllLogs(
+          limit ? parseInt(limit as string) : 100,
+          offset ? parseInt(offset as string) : 0,
+          search as string | undefined
+        );
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email logs fetched successfully",
+          data: { logs, count },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch email logs",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/email/:id",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { id } = req.params;
+        const log = await getEmailLogRepository().getLogById(id);
+
+        if (!log) {
+          return routeResponse(
+            res,
+            {
+              has_error: true,
+              message: "Email log not found",
+              data: null,
+            },
+            404
+          );
+        }
+
+        return routeResponse(res, {
+          has_error: false,
+          message: "Email log fetched successfully",
+          data: log,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch email log",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
   // ==================== GOOGLE CALENDAR ====================
   {
     path: "/calendar/config",
