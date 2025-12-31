@@ -23,6 +23,7 @@ import { getGeocodingService } from "../services/GeocodingService.js";
 import { getOptimizationService } from "../services/OptimizationService.js";
 import { getLinearService } from "../services/LinearService.js";
 import { getEmailService } from "../services/EmailService.js";
+import { getCalendarService } from "../services/CalendarService.js";
 import { InviteStatus, User } from "../entities/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -72,6 +73,7 @@ const getLiveKit = () => getLiveKitService();
 const getGeocoding = () => getGeocodingService();
 const getOptimization = () => getOptimizationService();
 const getLinear = () => getLinearService();
+const getCalendar = () => getCalendarService();
 const getEmail = () => getEmailService();
 
 // Services will be initialized lazily when needed
@@ -980,6 +982,71 @@ export const routesLinks: Array<RouteLinkType> = [
     },
   },
 
+  {
+    path: "/appointments/:id",
+    method: "DELETE",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const appointment = await getAppointmentsRepository().getAppointment(req.params.id);
+        if (!appointment) {
+          return routeResponse(
+            res,
+            { has_error: true, message: "Appointment not found", data: null },
+            404
+          );
+        }
+        await getAppointmentsRepository().deleteAppointment(req.params.id);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Appointment deleted successfully",
+          data: { status: "deleted" },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete appointment",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  {
+    path: "/appointments/by-calendar-event/:eventId",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const appointment = await getAppointmentsRepository().getAppointmentByCalendarEventId(req.params.eventId);
+        if (!appointment) {
+          return routeResponse(
+            res,
+            { has_error: true, message: "Appointment not found", data: null },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Appointment fetched successfully",
+          data: appointment,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch appointment",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
   // ==================== GEOCODING ====================
   {
     path: "/geocode-prospects",
@@ -1251,8 +1318,8 @@ export const routesLinks: Array<RouteLinkType> = [
         const passwordHash = input.passwordHash
           ? input.passwordHash
           : input.password
-          ? await bcrypt.hash(input.password, 10)
-          : null;
+            ? await bcrypt.hash(input.password, 10)
+            : null;
         if (!passwordHash) {
           return routeResponse(
             res,
@@ -2778,8 +2845,7 @@ export const routesLinks: Array<RouteLinkType> = [
           } catch (err) {
             failed++;
             errors.push(
-              `Prospect ${prospect.id}: ${
-                err instanceof Error ? err.message : "Unknown error"
+              `Prospect ${prospect.id}: ${err instanceof Error ? err.message : "Unknown error"
               }`
             );
           }
@@ -3662,6 +3728,242 @@ export const routesLinks: Array<RouteLinkType> = [
           },
           500
         );
+      }
+    },
+  },
+
+  // ==================== GOOGLE CALENDAR ====================
+  {
+    path: '/calendar/config',
+    method: 'GET',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const calendar = getCalendar();
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Calendar config fetched successfully',
+          data: {
+            configured: calendar.isConfigured(),
+          },
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to fetch calendar config', data: error?.message }, 500);
+      }
+    },
+  },
+
+  {
+    path: '/calendar/auth-url',
+    method: 'GET',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const userId = req.query.userId as string | undefined;
+        const calendar = getCalendar();
+
+        if (!calendar.isConfigured()) {
+          return routeResponse(res, { has_error: true, message: 'Google Calendar is not configured', data: null }, 400);
+        }
+
+        const authUrl = calendar.getAuthUrl(userId);
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Auth URL generated successfully',
+          data: { authUrl },
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to generate auth URL', data: error?.message }, 500);
+      }
+    },
+  },
+
+  {
+    path: '/calendar/tokens',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { code } = req.body;
+        if (!code) {
+          return routeResponse(res, { has_error: true, message: 'Authorization code is required', data: null }, 400);
+        }
+
+        const calendar = getCalendar();
+        if (!calendar.isConfigured()) {
+          return routeResponse(res, { has_error: true, message: 'Google Calendar is not configured', data: null }, 400);
+        }
+
+        const tokens = await calendar.getTokens(code);
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Tokens retrieved successfully',
+          data: tokens,
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to get tokens', data: error?.message }, 500);
+      }
+    },
+  },
+
+  {
+    path: '/calendar/events',
+    method: 'GET',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { accessToken, refreshToken, timeMin, timeMax, maxResults, calendarId } = req.query;
+
+        if (!accessToken) {
+          return routeResponse(res, { has_error: true, message: 'Access token is required', data: null }, 400);
+        }
+
+        const calendar = getCalendar();
+        if (!calendar.isConfigured()) {
+          return routeResponse(res, { has_error: true, message: 'Google Calendar is not configured', data: null }, 400);
+        }
+
+        calendar.setCredentials(accessToken as string, refreshToken as string | undefined);
+
+        const events = await calendar.listEvents({
+          timeMin: timeMin as string | undefined,
+          timeMax: timeMax as string | undefined,
+          maxResults: maxResults ? parseInt(maxResults as string) : undefined,
+          calendarId: calendarId as string | undefined,
+        });
+
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Events fetched successfully',
+          data: events,
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to fetch events', data: error?.message }, 500);
+      }
+    },
+  },
+
+  {
+    path: '/calendar/events',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { accessToken, refreshToken, event } = req.body;
+
+        if (!accessToken || !event) {
+          return routeResponse(res, { has_error: true, message: 'Access token and event data are required', data: null }, 400);
+        }
+
+        const calendar = getCalendar();
+        if (!calendar.isConfigured()) {
+          return routeResponse(res, { has_error: true, message: 'Google Calendar is not configured', data: null }, 400);
+        }
+
+        calendar.setCredentials(accessToken, refreshToken);
+
+        const createdEvent = await calendar.createEvent(event);
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Event created successfully',
+          data: createdEvent,
+        }, 201);
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to create event', data: error?.message }, 500);
+      }
+    },
+  },
+
+  {
+    path: '/calendar/events/:eventId',
+    method: 'PATCH',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { accessToken, refreshToken, event } = req.body;
+        const { eventId } = req.params;
+
+        if (!accessToken || !event) {
+          return routeResponse(res, { has_error: true, message: 'Access token and event data are required', data: null }, 400);
+        }
+
+        const calendar = getCalendar();
+        if (!calendar.isConfigured()) {
+          return routeResponse(res, { has_error: true, message: 'Google Calendar is not configured', data: null }, 400);
+        }
+
+        calendar.setCredentials(accessToken, refreshToken);
+
+        const updatedEvent = await calendar.updateEvent(eventId, event);
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Event updated successfully',
+          data: updatedEvent,
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to update event', data: error?.message }, 500);
+      }
+    },
+  },
+
+  {
+    path: '/calendar/events/:eventId',
+    method: 'DELETE',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { accessToken, refreshToken, calendarId } = req.query;
+        const { eventId } = req.params;
+
+        if (!accessToken) {
+          return routeResponse(res, { has_error: true, message: 'Access token is required', data: null }, 400);
+        }
+
+        const calendar = getCalendar();
+        if (!calendar.isConfigured()) {
+          return routeResponse(res, { has_error: true, message: 'Google Calendar is not configured', data: null }, 400);
+        }
+
+        calendar.setCredentials(accessToken as string, refreshToken as string | undefined);
+
+        await calendar.deleteEvent(eventId, calendarId as string | undefined);
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Event deleted successfully',
+          data: { success: true },
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to delete event', data: error?.message }, 500);
+      }
+    },
+  },
+
+  {
+    path: '/calendar/sync',
+    method: 'POST',
+    handler: async (req: Request, res: Response) => {
+      try {
+        const { accessToken, refreshToken } = req.body;
+
+        if (!accessToken) {
+          return routeResponse(res, { has_error: true, message: 'Access token is required', data: null }, 400);
+        }
+
+        const calendar = getCalendar();
+        if (!calendar.isConfigured()) {
+          return routeResponse(res, { has_error: true, message: 'Google Calendar is not configured', data: null }, 400);
+        }
+
+        // Get all appointments from database
+        const appointments = await getAppointmentsRepository().listTodayAppointments();
+
+        // Sync appointments to Google Calendar
+        const result = await calendar.syncAppointmentsToCalendar(
+          appointments,
+          accessToken,
+          refreshToken
+        );
+
+        return routeResponse(res, {
+          has_error: false,
+          message: 'Calendar synced successfully',
+          data: result,
+        });
+      } catch (error: any) {
+        return routeResponse(res, { has_error: true, message: 'Failed to sync calendar', data: error?.message }, 500);
       }
     },
   },

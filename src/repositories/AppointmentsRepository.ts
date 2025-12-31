@@ -7,6 +7,7 @@ import { getDatabaseManager } from "../config/database.js";
  */
 export interface IAppointmentsRepository {
   getAppointment(id: string): Promise<Appointment | null>;
+  getAppointmentByCalendarEventId(googleCalendarEventId: string): Promise<Appointment | null>;
   listAppointmentsByFieldRepAndDate(
     fieldRepId: string,
     date: string
@@ -17,6 +18,7 @@ export interface IAppointmentsRepository {
     id: string,
     appointment: Partial<Appointment>
   ): Promise<Appointment | null>;
+  deleteAppointment(id: string): Promise<void>;
 }
 
 /**
@@ -35,6 +37,10 @@ export class AppointmentsRepository implements IAppointmentsRepository {
     return await this.appointmentRepo.findOne({ where: { id } });
   }
 
+  async getAppointmentByCalendarEventId(googleCalendarEventId: string): Promise<Appointment | null> {
+    return await this.appointmentRepo.findOne({ where: { googleCalendarEventId } });
+  }
+
   async listAppointmentsByFieldRepAndDate(
     fieldRepId: string,
     date: string
@@ -46,37 +52,37 @@ export class AppointmentsRepository implements IAppointmentsRepository {
   }
 
   async listTodayAppointments(territory?: string): Promise<any[]> {
-  const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
 
-  const query = this.appointmentRepo
-   .createQueryBuilder('appointment')
-   .leftJoinAndSelect('appointment.prospect', 'prospect')
-   .leftJoinAndSelect('appointment.fieldRep', 'fieldRep')
-   .where('appointment.scheduledDate = :today', { today })
-   .orderBy('appointment.scheduledTime', 'ASC');
+    const query = this.appointmentRepo
+      .createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.prospect', 'prospect')
+      .leftJoinAndSelect('appointment.fieldRep', 'fieldRep')
+      .where('appointment.scheduledDate = :today', { today })
+      .orderBy('appointment.scheduledTime', 'ASC');
 
-  if (territory) {
-   query.andWhere('fieldRep.territory = :territory', { territory });
+    if (territory) {
+      query.andWhere('fieldRep.territory = :territory', { territory });
+    }
+
+    const appointments = await query.getMany();
+
+    return appointments.map((app) => ({
+      id: app.id,
+      scheduledDate: app.scheduledDate,
+      scheduledTime: app.scheduledTime,
+      durationMinutes: app.durationMinutes,
+      status: app.status,
+      prospectId: app.prospectId,
+      prospectName: app.prospect?.businessName,
+      prospectPhone: app.prospect?.phoneNumber,
+      prospectAddress: app.prospect?.addressStreet,
+      prospectCity: app.prospect?.addressCity,
+      fieldRepId: app.fieldRepId,
+      fieldRepName: app.fieldRep?.name,
+      territory: app.fieldRep?.territory,
+    }));
   }
-
-  const appointments = await query.getMany();
-
-  return appointments.map((app) => ({
-   id: app.id,
-   scheduledDate: app.scheduledDate,
-   scheduledTime: app.scheduledTime,
-   durationMinutes: app.durationMinutes,
-   status: app.status,
-   prospectId: app.prospectId,
-   prospectName: app.prospect?.businessName,
-   prospectPhone: app.prospect?.phoneNumber,
-   prospectAddress: app.prospect?.addressStreet,
-   prospectCity: app.prospect?.addressCity,
-   fieldRepId: app.fieldRepId,
-   fieldRepName: app.fieldRep?.name,
-   territory: app.fieldRep?.territory,
-  }));
- }
 
   async createAppointment(
     appointment: Partial<Appointment>
@@ -94,6 +100,10 @@ export class AppointmentsRepository implements IAppointmentsRepository {
       updatedAt: new Date(),
     });
     return await this.getAppointment(id);
+  }
+
+  async deleteAppointment(id: string): Promise<void> {
+    await this.appointmentRepo.delete(id);
   }
 }
 
