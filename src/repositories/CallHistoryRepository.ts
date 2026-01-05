@@ -173,9 +173,9 @@ export class CallHistoryRepository implements ICallHistoryRepository {
 
       query.andWhere(
         new Brackets((qb) => {
-          qb.where("prospect.businessName LIKE :search", {
+          qb.where("prospect.businessName ILIKE :search", {
             search: searchTerm,
-          }).orWhere("caller.name LIKE :search", { search: searchTerm });
+          }).orWhere("caller.name ILIKE :search", { search: searchTerm });
         })
       );
     }

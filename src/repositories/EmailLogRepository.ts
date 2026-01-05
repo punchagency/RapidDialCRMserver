@@ -47,9 +47,9 @@ export class EmailLogRepository implements IEmailLogRepository {
       const searchTerm = `%${search}%`;
       query.andWhere(
         new Brackets((qb) => {
-          qb.where("emailLog.to LIKE :search", { search: searchTerm })
-            .orWhere("emailLog.subject LIKE :search", { search: searchTerm })
-            .orWhere("emailLog.title LIKE :search", { search: searchTerm });
+          qb.where("emailLog.to ILIKE :search", { search: searchTerm })
+            .orWhere("emailLog.subject ILIKE :search", { search: searchTerm })
+            .orWhere("emailLog.title ILIKE :search", { search: searchTerm });
         })
       );
     }
