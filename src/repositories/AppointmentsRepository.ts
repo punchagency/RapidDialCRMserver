@@ -84,6 +84,37 @@ export class AppointmentsRepository implements IAppointmentsRepository {
     }));
   }
 
+  async listAllAppointments(territory?: string): Promise<any[]> {
+    const query = this.appointmentRepo
+      .createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.prospect', 'prospect')
+      .leftJoinAndSelect('appointment.fieldRep', 'fieldRep')
+      .orderBy('appointment.scheduledDate', 'ASC')
+      .addOrderBy('appointment.scheduledTime', 'ASC');
+
+    if (territory) {
+      query.andWhere('fieldRep.territory = :territory', { territory });
+    }
+
+    const appointments = await query.getMany();
+
+    return appointments.map((app) => ({
+      id: app.id,
+      scheduledDate: app.scheduledDate,
+      scheduledTime: app.scheduledTime,
+      durationMinutes: app.durationMinutes,
+      status: app.status,
+      prospectId: app.prospectId,
+      prospectName: app.prospect?.businessName,
+      prospectPhone: app.prospect?.phoneNumber,
+      prospectAddress: app.prospect?.addressStreet,
+      prospectCity: app.prospect?.addressCity,
+      fieldRepId: app.fieldRepId,
+      fieldRepName: app.fieldRep?.name,
+      territory: app.fieldRep?.territory,
+    }));
+  }
+
   async createAppointment(
     appointment: Partial<Appointment>
   ): Promise<Appointment> {

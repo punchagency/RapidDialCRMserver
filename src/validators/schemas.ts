@@ -56,8 +56,11 @@ export const insertAppointmentSchema = z.object({
   scheduledDate: z.string().min(1),
   scheduledTime: z.string().min(1),
   durationMinutes: z.number().default(45),
+  bufferTimeMinutes: z.number().optional().nullable(),
   googleCalendarEventId: z.string().max(255).optional(),
   status: z.string().max(50).default('confirmed'),
+  notes: z.string().optional().nullable(),
+  place: z.string().max(255).optional().nullable(),
 });
 
 // Stakeholder schemas

@@ -226,6 +226,13 @@ export const routesLinks: Array<RouteLinkType> = [
           isActive: true,
         });
 
+        if (input.role === UserRole.FIELD_SALES_REP){
+          await getFieldRepsRepository().createFieldRep({
+            name: input.name,
+            territory: input.territory || 'Miami',
+          });
+        }
+
         const token = signToken(user);
 
         // Send invite email with reset link
@@ -860,6 +867,35 @@ export const routesLinks: Array<RouteLinkType> = [
   },
 
   // ==================== APPOINTMENTS ====================
+  {
+    path: "/appointments/all",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const territory = req.query.territory as string | undefined;
+        const appointment = await getAppointmentsRepository().listAllAppointments(territory);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Appointments fetched successfully",
+            data: appointment,
+          },
+          200
+        );
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "An erro occur trying to fetch appointments",
+            data: error?.message,
+          },
+          400
+        );
+      }
+    },
+  },
   {
     path: "/appointments",
     method: "POST",

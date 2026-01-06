@@ -28,22 +28,25 @@ export class Appointment {
   @Column({ name: "duration_minutes", type: "int", default: 45 })
   durationMinutes!: number;
 
+  @Column({ name: "buffer_time_minutes", type: "int", nullable: true })
+  bufferTimeMinutes?: number | null;
+
   @Column({
     name: "google_calendar_event_id",
     type: "varchar",
     length: 255,
     nullable: true,
   })
-  googleCalendarEventId?: string;
+  googleCalendarEventId?: string | null;
 
   @Column({ type: "varchar", length: 50, default: "confirmed" })
   status!: string;
 
   @Column({ type: "text", nullable: true })
-  notes?: string;
+  notes?: string | null;
 
   @Column({ type: "varchar", length: 255, nullable: true })
-  place?: string;
+  place?: string | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt!: Date;
