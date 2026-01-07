@@ -15,6 +15,7 @@ export { Issue } from "./Issue.js";
 export { TeamRelationship } from "./TeamRelationship.js";
 export { EmailTemplate } from "./EmailTemplate.js";
 export { EmailLog } from "./EmailLog.js";
+export { Script } from "./Script.js";
 
 // Export types
 export type { IssueStatus, IssuePriority } from "./Issue.js";

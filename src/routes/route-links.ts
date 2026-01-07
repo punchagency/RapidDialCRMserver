@@ -16,6 +16,7 @@ import {
   getTeamRelationshipsRepository,
   getEmailTemplatesRepository,
   getEmailLogRepository,
+  getScriptsRepository,
   UserRole,
 } from "../repositories/index.js";
 import { getTwilioService } from "../services/TwilioService.js";
@@ -41,6 +42,7 @@ import {
   insertIssueSchema,
   insertTerritorySchema,
   insertProfessionSchema,
+  insertScriptSchema,
 } from "../validators/schemas.js";
 import { roundRobin } from "../util/round-robin.js";
 
@@ -226,7 +228,7 @@ export const routesLinks: Array<RouteLinkType> = [
           isActive: true,
         });
 
-        if (input.role === UserRole.FIELD_SALES_REP){
+        if (input.role === UserRole.FIELD_SALES_REP) {
           await getFieldRepsRepository().createFieldRep({
             name: input.name,
             territory: input.territory || 'Miami',
@@ -1359,8 +1361,8 @@ export const routesLinks: Array<RouteLinkType> = [
         const passwordHash = input.passwordHash
           ? input.passwordHash
           : input.password
-          ? await bcrypt.hash(input.password, 10)
-          : null;
+            ? await bcrypt.hash(input.password, 10)
+            : null;
         if (!passwordHash) {
           return routeResponse(
             res,
@@ -2886,8 +2888,7 @@ export const routesLinks: Array<RouteLinkType> = [
           } catch (err) {
             failed++;
             errors.push(
-              `Prospect ${prospect.id}: ${
-                err instanceof Error ? err.message : "Unknown error"
+              `Prospect ${prospect.id}: ${err instanceof Error ? err.message : "Unknown error"
               }`
             );
           }
@@ -4270,6 +4271,186 @@ export const routesLinks: Array<RouteLinkType> = [
           {
             has_error: true,
             message: "Failed to sync calendar",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+
+  // ==================== SCRIPTS ====================
+  {
+    path: "/scripts",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const profession = req.query.profession as string | undefined;
+        const scripts = await getScriptsRepository().listScripts(profession);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Scripts fetched successfully",
+          data: scripts,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch scripts",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+  {
+    path: "/scripts/:id",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const script = await getScriptsRepository().getScript(req.params.id);
+        if (!script) {
+          return routeResponse(
+            res,
+            { has_error: true, message: "Script not found", data: null },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Script fetched successfully",
+          data: script,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch script",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+  {
+    path: "/scripts",
+    method: "POST",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const data = insertScriptSchema.parse(req.body);
+        const script = await getScriptsRepository().createScript(data);
+        return routeResponse(
+          res,
+          {
+            has_error: false,
+            message: "Script created successfully",
+            data: script,
+          },
+          201
+        );
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Invalid script data",
+            data: error?.message,
+          },
+          400
+        );
+      }
+    },
+  },
+  {
+    path: "/scripts/:id",
+    method: "PATCH",
+    handler: async (req: Request, res: Response) => {
+      try {
+        // For updates, make all fields optional and allow partial updates
+        const data = insertScriptSchema.partial().parse(req.body);
+        const script = await getScriptsRepository().updateScript(
+          req.params.id,
+          data
+        );
+        if (!script) {
+          return routeResponse(
+            res,
+            { has_error: true, message: "Script not found", data: null },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Script updated successfully",
+          data: script,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to update script",
+            data: error?.message,
+          },
+          400
+        );
+      }
+    },
+  },
+  {
+    path: "/scripts/:id",
+    method: "DELETE",
+    handler: async (req: Request, res: Response) => {
+      try {
+        await getScriptsRepository().deleteScript(req.params.id);
+        return routeResponse(res, {
+          has_error: false,
+          message: "Script deleted successfully",
+          data: { success: true },
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to delete script",
+            data: error?.message,
+          },
+          500
+        );
+      }
+    },
+  },
+  {
+    path: "/scripts/default/:profession",
+    method: "GET",
+    handler: async (req: Request, res: Response) => {
+      try {
+        const script = await getScriptsRepository().getDefaultScript(
+          req.params.profession
+        );
+        if (!script) {
+          return routeResponse(
+            res,
+            { has_error: true, message: "Default script not found", data: null },
+            404
+          );
+        }
+        return routeResponse(res, {
+          has_error: false,
+          message: "Default script fetched successfully",
+          data: script,
+        });
+      } catch (error: any) {
+        return routeResponse(
+          res,
+          {
+            has_error: true,
+            message: "Failed to fetch default script",
             data: error?.message,
           },
           500

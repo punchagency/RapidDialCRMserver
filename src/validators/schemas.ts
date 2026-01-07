@@ -130,3 +130,20 @@ export const insertProfessionSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
+// Script schemas
+export const insertScriptSchema = z.object({
+  name: z.string().min(1).max(255),
+  profession: z.string().min(1).max(50),
+  content: z.string().min(1),
+  dynamicFields: z.array(z.string()).optional(),
+  branches: z.array(z.object({
+    id: z.string(),
+    condition: z.string(),
+    action: z.string(),
+    content: z.string(),
+  })).optional(),
+  version: z.number().int().positive().optional(),
+  isPublished: z.boolean().optional().default(false),
+  isDefault: z.boolean().optional().default(false),
+});
+
