@@ -133,7 +133,7 @@ export const insertProfessionSchema = z.object({
 // Script schemas
 export const insertScriptSchema = z.object({
   name: z.string().min(1).max(255),
-  profession: z.string().min(1).max(50),
+  profession: z.string().min(1).max(50).optional().nullable(),
   content: z.string().min(1),
   dynamicFields: z.array(z.string()).optional(),
   branches: z.array(z.object({

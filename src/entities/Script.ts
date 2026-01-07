@@ -16,8 +16,8 @@ export class Script {
  @Column({ type: 'varchar', length: 255 })
  name!: string;
 
- @Column({ type: 'varchar', length: 50 })
- profession!: string;
+ @Column({ type: 'varchar', length: 50, nullable: true })
+ profession?: string | null;
 
  @Column({ type: 'text' })
  content!: string;

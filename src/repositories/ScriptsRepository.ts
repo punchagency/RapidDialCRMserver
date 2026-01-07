@@ -1,4 +1,4 @@
-import { DataSource, Repository } from "typeorm";
+import { DataSource, Repository, IsNull } from "typeorm";
 import { Script } from "../entities/index.js";
 import { getDatabaseManager } from "../config/database.js";
 
@@ -32,11 +32,19 @@ export class ScriptsRepository implements IScriptsRepository {
 
  async listScripts(profession?: string): Promise<Script[]> {
   if (profession) {
+   // If profession is "general" or empty, return scripts with null profession
+   if (profession === "general" || profession === "") {
+    return await this.scriptRepo.find({
+     where: { profession: IsNull() as any },
+     order: { createdAt: "DESC" },
+    });
+   }
    return await this.scriptRepo.find({
     where: { profession },
     order: { createdAt: "DESC" },
    });
   }
+  // Return all scripts (both with and without profession)
   return await this.scriptRepo.find({
    order: { createdAt: "DESC" },
   });
